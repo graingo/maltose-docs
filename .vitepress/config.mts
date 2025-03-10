@@ -5,7 +5,7 @@ export default defineConfig({
   description: '基于Gin打造的轻量级企业级Go开发框架',
   lang: 'zh-CN',
   themeConfig: {
-    logo: '/logo.png',
+    // logo: '/logo.png',
     nav: [
       { text: '首页', link: '/' },
       { text: '快速开始', link: '/quick/download' },
