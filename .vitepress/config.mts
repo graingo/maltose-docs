@@ -6,6 +6,7 @@ export default defineConfig({
   lang: 'zh-CN',
   base: '/maltose-docs/',
   ignoreDeadLinks: true,
+  cleanUrls: true,
   themeConfig: {
     // logo: '/logo.png',
     nav: [
