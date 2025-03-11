@@ -12,7 +12,12 @@ export default defineConfig({
     nav: [
       { text: '首页', link: '/' },
       { text: '快速开始', link: '/quick/download' },
-      { text: '组件列表' , link: '/quick/download' },
+      { text: '开发手册',
+        items: [
+          { text: '组件列表', link: '/components/' },
+          { text: '服务观测性', link: '/obs/trace/index' },
+        ]
+       },
       { text: 'GitHub', link: 'https://github.com/graingo/maltose' }
     ],
     sidebar: {
@@ -29,6 +34,34 @@ export default defineConfig({
             { text: '统一返回结构', link: '/quick/uniform-response' },
             { text: '生成接口文档', link: '/quick/api-docs' },
             { text: '下一步学习', link: '/quick/quick-next' },
+          ],
+          collapsed: true,
+        }
+      ],
+      '/obs/': [
+        {
+          text: '服务观测性',
+          items: [
+            { text: '链路追踪', link: '/obs/trace/index', 
+              items: [
+                { text: '背景知识', link: '/obs/trace/background' },
+                { text: '准备工作', link: '/obs/trace/prepare' },
+                { text: '基本示例', link: '/obs/trace/example'},
+                { text: 'HTTP示例', link: '/obs/trace/http-example',
+                  items: [
+                    { text: 'baggage', link: '/obs/trace/http-example/baggage' },
+                    { text: '数据操作', link: '/obs/trace/http-example/data-operation' },
+                  ]
+                },
+                { text: '最佳实践',
+                  items: [
+                    { text: 'TraceID注入和获取', link: '/obs/trace/best-practice/inject-traceid' },
+                  ]
+                 },
+              ]
+             },
+            { text: '指标监控', link: '/obs/metric/index' },
+            { text: '日志收集', link: '/obs/log/index' },
           ]
         }
       ],
