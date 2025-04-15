@@ -44,20 +44,3 @@
 3. **错误处理**：建立统一的错误处理机制
 4. **日志规范**：制定日志记录规范，包括级别和内容
 5. **接口版本化**：为 API 设计合理的版本化策略
-
-## 示例项目
-
-查看 Maltose 的完整示例项目，了解框架在实际应用中的用法：
-
-- [简单博客系统](https://github.com/graingo/maltose-examples/blog)：展示基本的 CRUD 操作
-- [微服务示例](https://github.com/graingo/maltose-examples/microservice)：演示微服务架构
-
-## 获取帮助
-
-如果您在使用 Maltose 时遇到问题，可以通过以下方式获取帮助：
-
-- [GitHub Issues](https://github.com/graingo/maltose/issues)：报告问题或提出建议
-- [文档站点](https://maltose.graingo.dev)：查阅完整文档
-- [Gitter 聊天室](https://gitter.im/graingo/maltose)：与社区交流
-
-感谢您使用 Maltose 框架，祝您开发愉快！
