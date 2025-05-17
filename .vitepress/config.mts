@@ -11,11 +11,21 @@ export default defineConfig({
     // logo: '/logo.png',
     nav: [
       { text: "首页", link: "/" },
-      { text: "快速开始", link: "/quick/download" },
+      { text: "快速开始", link: "/guide/quick-start" },
       { text: "开发手册", link: "/docs/components/mhttp/start" },
       { text: "GitHub", link: "https://github.com/graingo/maltose" },
     ],
     sidebar: {
+      "/guide/": [
+        {
+          text: "指南",
+          items: [
+            { text: "快速开始", link: "/guide/quick-start" },
+            { text: "安装说明", link: "/guide/installation" },
+            { text: "架构概览", link: "/guide/architecture" },
+          ],
+        },
+      ],
       "/quick/": [
         {
           text: "快速开始",
@@ -62,10 +72,32 @@ export default defineConfig({
           text: "核心组件",
           collapsed: true,
           items: [
-            // 预留核心组件的位置
-            // { text: '配置管理', link: '/docs/core/mconfig/index' },
-            // { text: '日志处理', link: '/docs/core/mlog/index' },
-            // { text: '错误处理', link: '/docs/core/merror/index' },
+            { text: "配置管理", link: "/docs/core/mcfg/index" },
+            { text: "配置加载", link: "/docs/core/mcfg/loading" },
+            { text: "配置获取", link: "/docs/core/mcfg/getting" },
+            { text: "配置热更新", link: "/docs/core/mcfg/hot-reload" },
+            { text: "适配器", link: "/docs/core/mcfg/adapters" },
+            { text: "日志系统", link: "/docs/core/mlog/index" },
+            { text: "日志级别", link: "/docs/core/mlog/levels" },
+            { text: "日志格式", link: "/docs/core/mlog/formats" },
+            { text: "多输出目标", link: "/docs/core/mlog/outputs" },
+            { text: "上下文集成", link: "/docs/core/mlog/context" },
+            { text: "实例管理", link: "/docs/core/minstance/index" },
+            { text: "单例管理", link: "/docs/core/minstance/singleton" },
+            { text: "命名实例", link: "/docs/core/minstance/named" },
+          ],
+        },
+        {
+          text: "数据库",
+          collapsed: true,
+          items: [
+            { text: "数据库操作", link: "/docs/database/mdb/index" },
+            { text: "连接配置", link: "/docs/database/mdb/config" },
+            { text: "基本操作", link: "/docs/database/mdb/basic" },
+            { text: "事务管理", link: "/docs/database/mdb/transaction" },
+            { text: "查询构建", link: "/docs/database/mdb/query" },
+            { text: "钩子与回调", link: "/docs/database/mdb/hooks" },
+            { text: "日志与追踪", link: "/docs/database/mdb/logging" },
           ],
         },
         {
@@ -107,6 +139,9 @@ export default defineConfig({
               ],
             },
             { text: "指标监控", link: "/docs/obs/metric/index" },
+            { text: "基础指标", link: "/docs/obs/metric/basic" },
+            { text: "自定义指标", link: "/docs/obs/metric/custom" },
+            { text: "仪表盘", link: "/docs/obs/metric/dashboard" },
           ],
         },
         {
