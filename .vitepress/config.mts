@@ -39,6 +39,7 @@ export default defineConfig({
             { text: "配置管理 (mcfg)", link: "/components/configuration" },
             { text: "日志 (mlog)", link: "/components/logging" },
             { text: "数据库 (mdb)", link: "/components/database" },
+            { text: "缓存 (mcache)", link: "/components/cache" },
           ],
         },
         {
