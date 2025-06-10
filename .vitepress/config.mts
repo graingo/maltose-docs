@@ -15,7 +15,7 @@ export default defineConfig({
       { text: "组件", link: "/components/" },
       { text: "进阶", link: "/advanced/" },
       { text: "CLI", link: "/cli/" },
-      { text: "FAQ", link: "/faq" },
+      { text: "FAQ", link: "/faq/overview" },
     ],
     sidebar: {
       "/guide/": [
@@ -44,7 +44,7 @@ export default defineConfig({
         {
           text: "可观测性",
           items: [
-            { text: "背景", link: "/components/observability/background" },
+            { text: "背景知识", link: "/components/observability/background" },
             {
               text: "链路追踪 (mtrace)",
               link: "/components/observability/tracing/",
@@ -72,6 +72,15 @@ export default defineConfig({
         {
           text: "命令行工具",
           items: [{ text: "CLI 总览", link: "/cli/" }],
+        },
+      ],
+      "/faq/": [
+        {
+          text: "FAQ",
+          items: [
+            { text: "常见问题", link: "/faq/overview" },
+            { text: "设计哲学", link: "/faq/design-philosophy" },
+          ],
         },
       ],
     },
