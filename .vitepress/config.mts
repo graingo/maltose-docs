@@ -6,10 +6,11 @@ export default defineConfig({
   lang: "zh-CN",
   base: "/maltose-docs/",
   srcDir: "docs",
+  head: [["link", { rel: "icon", href: "/maltose-docs/logo.svg" }]],
   ignoreDeadLinks: true,
   cleanUrls: true,
   themeConfig: {
-    // logo: '/logo.png',
+    logo: "/logo.svg",
     nav: [
       { text: "指南", link: "/guide/" },
       { text: "组件", link: "/components/" },
