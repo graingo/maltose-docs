@@ -5,18 +5,17 @@ export default defineConfig({
   description: "基于Gin打造的轻量级企业级Go开发框架",
   lang: "zh-CN",
   base: "/maltose-docs/",
-  srcDir: "docs",
-  head: [["link", { rel: "icon", href: "/maltose-docs/logo.svg" }]],
+  head: [["link", { rel: "icon", href: "/maltose-docs/favicon.ico" }]],
   ignoreDeadLinks: true,
   cleanUrls: true,
   themeConfig: {
     logo: "/logo.svg",
     nav: [
       { text: "指南", link: "/guide/" },
-      { text: "组件", link: "/components/" },
+      { text: "手册", link: "/components/" },
       { text: "进阶", link: "/advanced/" },
       { text: "CLI", link: "/cli/" },
-      { text: "FAQ", link: "/faq/overview" },
+      { text: "FAQ", link: "/faq/" },
     ],
     sidebar: {
       "/guide/": [
@@ -26,6 +25,7 @@ export default defineConfig({
             { text: "简介", link: "/guide/" },
             { text: "快速开始", link: "/guide/getting-started" },
             { text: "核心概念", link: "/guide/core-concepts" },
+            { text: "全局对象", link: "/guide/global-instances" },
             { text: "目录结构", link: "/guide/directory-structure" },
           ],
         },
@@ -34,13 +34,24 @@ export default defineConfig({
         {
           text: "核心组件",
           items: [
-            { text: "总览", link: "/components/" },
-            { text: "Web Server (mhttp)", link: "/components/server" },
-            { text: "路由 (Routing)", link: "/components/routing" },
-            { text: "配置管理 (mcfg)", link: "/components/configuration" },
-            { text: "日志 (mlog)", link: "/components/logging" },
-            { text: "数据库 (mdb)", link: "/components/database" },
-            { text: "缓存 (mcache)", link: "/components/cache" },
+            {
+              text: "Web",
+              link: "/components/server/",
+              items: [
+                { text: "路由", link: "/components/server/routing" },
+                { text: "中间件", link: "/components/server/middleware" },
+              ],
+            },
+            { text: "配置管理", link: "/components/configuration" },
+            { text: "日志", link: "/components/logging" },
+            {
+              text: "数据库",
+              items: [
+                { text: "mdb", link: "/components/database/mdb" },
+                { text: "mredis", link: "/components/database/mredis" },
+              ],
+            },
+            { text: "缓存", link: "/components/cache" },
           ],
         },
         {
@@ -48,11 +59,11 @@ export default defineConfig({
           items: [
             { text: "背景知识", link: "/components/observability/background" },
             {
-              text: "链路追踪 (mtrace)",
+              text: "链路追踪",
               link: "/components/observability/tracing/",
             },
             {
-              text: "指标监控 (mmetric)",
+              text: "指标监控",
               link: "/components/observability/metrics/",
             },
           ],
@@ -62,11 +73,11 @@ export default defineConfig({
         {
           text: "进阶",
           items: [
-            { text: "总览", link: "/advanced/" },
-            { text: "中间件开发", link: "/advanced/middleware" },
             { text: "测试", link: "/advanced/testing" },
             { text: "错误处理", link: "/advanced/error-handling" },
             { text: "部署", link: "/advanced/deployment" },
+            { text: "跨边界链路追踪", link: "/advanced/messaging-tracing" },
+            { text: "完整配置参考", link: "/advanced/full-configuration" },
           ],
         },
       ],
@@ -80,7 +91,7 @@ export default defineConfig({
         {
           text: "FAQ",
           items: [
-            { text: "常见问题", link: "/faq/overview" },
+            { text: "常见问题", link: "/faq/" },
             { text: "设计哲学", link: "/faq/design-philosophy" },
           ],
         },

@@ -1,4 +1,4 @@
-# 路由 (Routing)
+# 路由
 
 `mhttp` 提供了一套强大且易用的路由系统，它完全兼容 Gin 的路由功能，并在此基础上进行了封装，使其更符合 Maltose 的设计哲学，特别是与控制器（Controller）和中间件（Middleware）的结合使用。
 

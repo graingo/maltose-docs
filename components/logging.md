@@ -1,4 +1,4 @@
-# 日志 (mlog)
+# 日志
 
 `mlog` 是 Maltose 框架提供的结构化日志组件，它基于 [Logrus](https://github.com/sirupsen/logrus) 实现，并在此基础上提供了更丰富、更便捷的功能，特别是在可观测性和配置方面。
 
@@ -13,34 +13,33 @@
 
 ## 快速上手
 
-`mlog` 提供了包级别的函数，可以直接使用。
+`mlog` 提供了便捷的全局方法，通过 `m` 包即可调用。
 
 ```go
 package main
 
 import (
 	"context"
-	"github.com/graingo/maltose/os/mlog"
+	"github.com/graingo/maltose/frame/m"
 )
 
 func main() {
     ctx := context.Background()
 
-    // 默认情况下，日志会输出到控制台
-    mlog.Info(ctx, "这是一条 Info 级别的日志")
-    mlog.Warn(ctx, "这是一条 Warn 级别的日志")
-    mlog.Errorf(ctx, "发生了一个错误, code: %d", 1001)
+    // 通过 m.Log() 获取默认日志实例并打印
+    m.Log().Info(ctx, "这是一条 Info 级别的日志")
+    m.Log().Warn(ctx, "这是一条 Warn 级别的日志")
+    m.Log().Errorf(ctx, "发生了一个错误, code: %d", 1001)
 
-    // 使用 WithContext 传递附加上下文信息
     // 假设 ctx 中已经包含了 TraceID
     // 输出的日志会自动包含 trace_id 和 span_id 字段
-    mlog.Info(ctx, "这条日志会自动带上 TraceID")
+    m.Log().Info(ctx, "这条日志会自动带上 TraceID")
 }
 ```
 
 ## 配置
 
-`mlog` 的强大之处在于其灵活的配置。您可以通过 `mlog.SetConfig` 或 `mlog.DefaultLogger().SetConfigWithMap` 来进行配置。
+`mlog` 的强大之处在于其灵活的配置。您可以通过 `m.Log().SetConfig` 或 `m.Log().SetConfigWithMap` 来进行配置。
 
 ### 配置文件示例
 
@@ -61,18 +60,18 @@ log:
 ### 代码中加载配置
 
 ```go
-// 假设您已经通过 mcfg 加载了配置
-logConfig, _ := mcfg.Instance().Get(ctx, "log")
+// 假设您已经通过 m.Config() 加载了配置
+logConfig, _ := m.Config().Get(ctx, "log")
 
 // 将 map 配置应用到默认 logger
-err := mlog.DefaultLogger().SetConfigWithMap(logConfig.Map())
+err := m.Log().SetConfigWithMap(logConfig.Map())
 if err != nil {
     panic(err)
 }
 
 // 现在 mlog 的行为就和配置文件中定义的一致了
 // 日志会以 json 格式输出到 ./logs/YYYY-MM-DD.log 文件和控制台
-mlog.Debug(ctx, "这是一条 Debug 日志")
+m.Log().Debug(ctx, "这是一条 Debug 日志")
 ```
 
 ## 核心功能详解

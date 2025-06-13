@@ -1,4 +1,4 @@
-# 配置管理 (mcfg)
+# 配置管理
 
 `mcfg` 是 Maltose 框架提供的配置管理组件，它基于 [Viper](https://github.com/spf13/viper) 构建，并提供了更简洁的、面向实例的接口和可扩展的适配器模式。
 
@@ -28,7 +28,7 @@ database:
 
 ### 获取配置
 
-您可以通过 `mcfg.Instance()` 获取默认的配置实例，并使用 `Get` 方法来读取配置项。
+您可以通过 `m.Config()` 获取默认的配置实例，并使用 `Get` 方法来读取配置项。
 
 ```go
 package main
@@ -36,14 +36,14 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/graingo/maltose/os/mcfg"
+    "github.com/graingo/maltose/frame/m"
 )
 
 func main() {
     ctx := context.Background()
 
     // 获取默认配置实例
-    cfg := mcfg.Instance()
+    cfg := m.Config()
 
     // 获取服务端口，并转换为 int 类型
     // Get 方法的第二个参数是默认值，如果配置项不存在则返回默认值
@@ -71,7 +71,7 @@ func main() {
 
 ## 多实例管理
 
-如果您的项目需要加载多个配置文件，可以使用 `Instance(name)` 来获取具名的配置实例。
+如果您的项目需要加载多个配置文件，可以使用 `m.Config(name)` 来获取具名的配置实例。
 
 例如，有一个 `config/redis.yaml` 配置文件：
 
@@ -86,7 +86,7 @@ port: 6379
 ```go
 // 获取名为 "redis" 的配置实例，
 // 它会自动加载 config/redis.yaml 文件
-redisCfg := mcfg.Instance("redis")
+redisCfg := m.Config("redis")
 
 redisHost, _ := redisCfg.Get(ctx, "host")
 fmt.Println("Redis Host:", redisHost.String()) // 输出: 127.0.0.1

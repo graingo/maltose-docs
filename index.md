@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: Maltose
+  name: MALTOSE
   text: 轻量级企业级Go开发框架
   tagline: 基于Gin打造，简单而强大
   actions:

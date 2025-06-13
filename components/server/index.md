@@ -1,4 +1,4 @@
-# Web Server (mhttp)
+# Web Server
 
 `mhttp` 是 Maltose 框架提供的 HTTP 服务器组件，它基于业界知名的 [Gin](https://github.com/gin-gonic/gin) 框架进行封装和增强，旨在提供更强大的功能和更流畅的开发体验。
 

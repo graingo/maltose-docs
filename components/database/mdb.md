@@ -1,4 +1,4 @@
-# 数据库 (mdb)
+# 数据库
 
 `mdb` 是 Maltose 框架提供的数据库 ORM（对象关系映射）组件，它基于业界广泛使用的 [GORM](https://gorm.io/) 构建，并在此基础上提供了配置驱动、实例管理、自动化的可观测性集成和读写分离支持。
 
@@ -39,42 +39,37 @@ database:
 
 ### 2. 获取数据库实例
 
-在您的代码中，通过 `mdb.Instance()` 获取数据库实例。
+在您的代码中，通过 `m` 包即可调用。
 
 ```go
 package main
 
 import (
-    "context"
-    "github.com/graingo/maltose/database/mdb"
-    "github.com/graingo/maltose/os/mcfg"
+	"context"
+	"fmt"
+	"github.com/graingo/maltose/frame/m"
 )
 
-// 假设您的数据表对应这个 struct
+// 定义你的模型
 type User struct {
-    ID   uint
-    Name string
+	ID   uint
+	Name string
 }
 
 func main() {
-    ctx := context.Background()
+	ctx := context.Background()
 
-    // 1. 加载数据库配置
-    dbCfg, _ := mcfg.Instance().Get(ctx, "database.default")
-    // 2. 将配置设置到 mdb 的默认实例
-    mdb.SetConfig("default", dbCfg)
+	// 1. 获取默认数据库实例
+	// m.DB() 内部会自动读取 "database.default" 配置并初始化连接
+	db := m.DB()
 
-    // 3. 获取默认的数据库实例
-    db, err := mdb.Instance("default")
-    if err != nil {
-        panic(err)
-    }
-
-    // 4. 使用 db 对象进行数据库操作，用法与原生 GORM 完全一致
-    var user User
-    db.WithContext(ctx).First(&user, 1) // 查找 ID为1的用户
-
-    fmt.Println(user.Name)
+	// 2. 使用 db 对象进行操作，用法与 GORM 完全兼容
+	var user User
+	err := db.WithContext(ctx).First(&user, 1).Error
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(user.Name)
 }
 ```
 
@@ -136,3 +131,14 @@ err := db.Transact(ctx, func(tx *mdb.DB) error {
 - **链路**: 每次数据库查询都会在 OpenTelemetry 中创建一个新的 `Span`，其父节点是当前业务逻辑的 `Span`。这使得您可以在 Jaeger, Zipkin 等系统中清晰地看到每一次请求中包含的数据库调用及其耗时。
 
 您无需为这些功能编写任何额外代码，它们都是开箱即用的。
+
+## 实例管理
+
+`mdb` 组件通过 `m` 包来管理数据库实例。
+
+- **`m.DB(name ...string)`**: 获取指定名称的数据库单例。如果实例不存在，它会尝试使用 `database.{name}` 配置进行初始化。如果 `name` 为空，则使用 `default`。
+- **`m.DBContext(ctx, name ...string)`**: 是 `m.DB(name...).WithContext(ctx)` 的便捷写法。
+
+这种设计的好处是，您无需在代码中到处传递数据库连接对象。在任何需要数据库操作的地方，只需通过 `m.DB()` 即可获取到正确的、已经初始化好的连接实例。
+
+在大多数应用中，可能只有一个 `default` 实例。但当需要连接多个数据库时，这种具名实例的管理方式就显得非常方便和清晰。
