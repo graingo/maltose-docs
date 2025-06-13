@@ -10,8 +10,7 @@
 │   └── v1/         # API 版本
 ├── cmd/            # 应用程序入口
 │   ├── server.go   # 服务启动
-│   ├── config.go   # (可选) 配置加载及钩子(Hook)函数
-│   └── route.go    # 路由注册
+│   └── config.go   # (可选) 配置加载及钩子(Hook)函数
 ├── config/         # 配置文件
 ├── internal/       # 内部代码，不对外暴露
 │   ├── controller/ # 控制器
