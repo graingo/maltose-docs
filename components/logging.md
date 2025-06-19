@@ -121,3 +121,96 @@ mlog.Info(ctx, "查询用户信息")
 ```
 
 这个功能对于构建可观测性系统、快速定位问题非常有帮助。
+
+### 自定义钩子 (Custom Hooks)
+
+除了内置的 `TraceID` 和 `ctxKeys` 注入功能，`mlog` 还提供了一个强大的 `Hook` 机制，允许您在日志写入前对日志条目（`Entry`）进行拦截和修改。这为您提供了极高的灵活性来扩展日志功能。
+
+内置的 `TraceID` 和 `ctxKeys` 注入实际上就是通过内部钩子实现的。
+
+#### `Hook` 接口
+
+要创建一个自定义钩子，您需要实现 `mlog.Hook` 接口：
+
+```go
+package mlog
+
+type Hook interface {
+	// Levels 指定了该钩子对哪些日志级别生效。
+	Levels() []Level
+	// Fire 是钩子的核心执行函数。
+	// 每一条符合级别的日志记录在写入前都会触发此函数。
+	Fire(entry *Entry) error
+}
+```
+
+- `Levels()`: 返回一个 `[]Level` 切片，定义了此钩子将作用于哪些日志级别。
+- `Fire(entry *Entry)`: 这是钩子的主要逻辑。您可以访问并修改 `entry.Data` 来添加、删除或修改日志的字段。`entry.Data` 是一个 `map[string]interface{}`。
+
+#### 使用示例：添加应用名字段
+
+假设我们希望每一条日志都自动带上应用名 `app_name` 字段。我们可以创建一个 `AppNameHook`。
+
+**1. 定义钩子**
+
+```go
+package main
+
+import "github.com/graingo/maltose/os/mlog"
+
+type AppNameHook struct {
+    AppName string
+}
+
+// Levels 指定此钩子对所有级别的日志都生效
+func (h *AppNameHook) Levels() []mlog.Level {
+    return mlog.AllLevels()
+}
+
+// Fire 在日志条目中添加 app_name 字段
+func (h *AppNameHook) Fire(entry *mlog.Entry) error {
+    entry.Data["app_name"] = h.AppName
+    return nil
+}
+```
+
+_提示：`mlog.AllLevels` 是一个包含了所有日志级别的便捷切片。_
+
+**2. 注册钩子**
+
+在您的应用初始化阶段，创建钩子实例并将其添加到 `mlog` 中。
+
+```go
+import (
+    "github.com/graingo/maltose/frame/m"
+)
+
+func main() {
+    // ...
+    appNameHook := &AppNameHook{AppName: "my-awesome-app"}
+    m.Log().AddHook(appNameHook)
+
+    // 现在所有的日志都会自动包含 app_name 字段
+    m.Log().Info(context.Background(), "服务启动成功")
+    // ...
+}
+```
+
+**3. 输出结果**
+
+最终输出的日志会是这样（以 JSON 格式为例）：
+
+```json
+{
+  "app_name": "my-awesome-app",
+  "level": "info",
+  "msg": "服务启动成功",
+  "time": "2023-10-27T11:00:00+08:00"
+}
+```
+
+通过这种方式，您可以轻松地为日志系统添加各种自定义功能，例如：
+
+- 将特定级别的错误日志发送到告警系统。
+- 对敏感信息字段进行脱敏处理。
+- 丰富日志内容，添加更多环境或应用相关的元数据。
