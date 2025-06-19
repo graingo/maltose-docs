@@ -1,32 +1,29 @@
-# 标准响应格式
+# 标准响应
 
-在构建 API 服务时，统一的响应格式是确保前后端协作顺畅的关键。Maltose 通过 `MiddlewareResponse()` 中间件提供了强大的标准响应支持，让您的 API 具有一致性和可预测性。
+在构建任何规模的 API 服务时，一个统一、可预测的响应格式都是奠定项目成功的基础。它不仅是前后端协作的契约，也是服务间通信、网关处理和日志监控的基石。Maltose 通过 `mhttp.MiddlewareResponse()` 中间件，为实现这一目标提供了强大支持。
 
 ## 为什么需要标准响应？
 
-### 前后端协作优势
-
-- **统一处理逻辑**：前端可以编写通用的响应处理函数，无需为每个 API 编写不同的解析逻辑
-- **错误处理一致**：所有错误都通过相同的字段结构返回，便于统一的错误提示和处理
-- **类型安全**：固定的响应结构让前端能够准确预期数据格式
-
-### 开发体验提升
-
-- **调试友好**：统一的响应格式让 API 调试变得更加直观
-- **文档清晰**：API 文档可以明确说明响应结构，减少沟通成本
-- **团队协作**：团队成员都遵循相同的响应约定，提高开发效率
+- **可预测性**: 无论是成功还是失败，API 的消费者（前端应用、其他微服务等）总能依赖一个固定的结构来解析响应。这极大地简化了客户端的逻辑。
+- **简化的错误处理**: 统一的错误格式意味着客户端可以实现全局的、一致的错误处理机制，而无需为每个端点编写特定的错误逻辑。
+- **关注点分离**: 控制器（Controller）可以专注于核心业务逻辑——返回业务数据或业务错误，而将响应格式化的通用工作完全委托给中间件。
+- **提升协作效率**: 清晰的 API 契约减少了沟通成本，使团队能够更高效地并行开发。
 
 ## 响应格式规范
 
-Maltose 的标准响应格式包含三个核心字段：
+启用中间件后，所有响应都将被包装成以下 JSON 结构：
 
-```typescript
-interface StandardResponse<T = any> {
-  code: number; // 业务状态码
-  message: string; // 响应消息
-  data: T | null; // 业务数据
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {}
 }
 ```
+
+- `code` (`int`): 业务状态码。`0` 通常表示成功，非 `0` 值表示特定的业务错误。
+- `message` (`string`): 对 `code` 的简短描述，主要用于调试和日志记录。
+- `data` (`any`): 实际的业务数据。成功时为业务实体，失败时通常为 `null`。
 
 ### 成功响应示例
 
@@ -36,8 +33,7 @@ interface StandardResponse<T = any> {
   "message": "success",
   "data": {
     "userId": 1001,
-    "username": "alice",
-    "email": "alice@example.com"
+    "username": "alice"
   }
 }
 ```
@@ -54,65 +50,41 @@ interface StandardResponse<T = any> {
 
 ## 中间件工作原理
 
-`MiddlewareResponse` 中间件智能地拦截控制器的返回值，并根据以下规则进行处理：
+`MiddlewareResponse` 中间件会智能地拦截控制器的返回值，并根据以下规则进行包装：
 
-### 成功场景
+- **当控制器返回 `(*SomeRes, nil)` 时 (成功)**:
 
-当控制器返回 `(result, nil)` 时：
+  - `code` 设置为 `0`
+  - `message` 设置为 `"success"`
+  - `data` 设置为控制器返回的 `*SomeRes` 对象
 
-- `code` 设置为 `0`
-- `message` 设置为 `"success"`
-- `data` 设置为 `result`
+- **当控制器返回 `(any, error)` 时 (失败)**:
+  - 如果 `error` 是 `*merror.Error` 类型，中间件会提取其内部的业务码和错误信息。
+  - 如果是其他 `error` 类型，会使用一个默认的服务器内部错误码。
+  - `data` 始终为 `null`。
 
-### 错误场景
-
-当控制器返回 `(nil, error)` 时：
-
-- 如果是 `*merror.Error`：提取其业务码和错误信息
-- 如果是普通 `error`：使用预设的服务器错误码和消息
-
-## 启用标准响应
+## 如何启用
 
 ::: warning 重要提醒
-`MiddlewareResponse` 需要手动启用，不是默认开启的。强烈建议在所有项目中启用此中间件。
+为了提供最大的灵活性，`MiddlewareResponse` 中间件**不是默认开启的**。我们强烈建议在所有新项目中手动启用它。
 :::
-
-### 基础启用方式
-
-```go
-package main
-
-import "github.com/graingo/maltose/net/mhttp"
-
-func main() {
-	s := mhttp.New()
-
-	// 启用标准响应中间件
-	s.Use(mhttp.MiddlewareResponse())
-
-	// 注册路由...
-	s.Run()
-}
-```
-
-### 与路由绑定一起使用
 
 ```go
 package main
 
 import (
-	"github.com/graingo/maltose/net/mhttp"
-	"your-project/internal/controller/user"
+    "github.com/graingo/maltose/net/mhttp"
+    "your-project/internal/router"
 )
 
 func main() {
 	s := mhttp.New()
 
-	// 启用标准响应中间件
+	// 全局启用标准响应中间件
 	s.Use(mhttp.MiddlewareResponse())
 
-	// 绑定控制器
-	s.Bind(&user.Controller{})
+	// 注册你的路由
+	router.Register(s)
 
 	s.Run()
 }
@@ -120,18 +92,25 @@ func main() {
 
 ## 控制器最佳实践
 
-### 成功响应示例
+启用中间件后，您的控制器代码将变得异常整洁。
+
+### 返回成功数据
+
+只需专注于返回业务逻辑处理成功后的数据结构即可。
 
 ```go
-func (c *Controller) GetUserProfile(ctx context.Context, req *v1.GetUserProfileReq) (*v1.GetUserProfileRes, error) {
-	// 业务逻辑
-	user, err := service.User().GetByID(ctx, req.UserID)
+// GetUserProfile 获取用户资料
+func (c *Controller) GetUserProfile(ctx context.Context, req *v1.UserReq) (*v1.UserRes, error) {
+	// 1. 调用 service 获取业务数据
+	user, err := service.User().GetProfile(ctx, req.UserID)
 	if err != nil {
+		// 2. 如果 service 层返回错误，直接透传
 		return nil, err
 	}
 
-	// 直接返回业务数据，中间件会自动包装
-	return &v1.GetUserProfileRes{
+	// 3. 成功时，直接返回响应结构体指针
+	// 中间件会自动包装成标准格式
+	return &v1.UserRes{
 		UserID:   user.ID,
 		Username: user.Username,
 		Email:    user.Email,
@@ -139,58 +118,29 @@ func (c *Controller) GetUserProfile(ctx context.Context, req *v1.GetUserProfileR
 }
 ```
 
-最终响应：
+### 返回业务错误
 
-```json
-{
-  "code": 0,
-  "message": "success",
-  "data": {
-    "userId": 1001,
-    "username": "alice",
-    "email": "alice@example.com"
-  }
-}
-```
-
-### 错误响应示例
+使用 `merror` 和 `mcode` 包来创建结构化的业务错误。
 
 ```go
+// Login 用户登录
 func (c *Controller) Login(ctx context.Context, req *v1.LoginReq) (*v1.LoginRes, error) {
-	// 验证用户凭据
+	// 1. 检查密码
 	user, err := service.User().CheckPassword(ctx, req.Username, req.Password)
 	if err != nil {
-		// 返回业务错误，中间件会自动处理
+		// 2. 凭证无效，返回一个预定义的业务错误
+		// 中间件会解析它，并生成 { "code": 40001, "message": "..." }
 		return nil, merror.NewCode(mcode.CodeInvalidCredentials, "用户名或密码错误")
 	}
 
-	// 生成令牌
-	token, err := service.Auth().GenerateToken(ctx, user.ID)
-	if err != nil {
-		return nil, merror.NewCode(mcode.CodeInternalError, "令牌生成失败")
-	}
+	// ... 生成 token 等后续逻辑
 
-	return &v1.LoginRes{
-		Token: token,
-		User:  user,
-	}, nil
+	return &v1.LoginRes{Token: "some-jwt-token"}, nil
 }
 ```
 
-错误时的响应：
+### 跳过特定路由
 
-```json
-{
-  "code": 40001,
-  "message": "用户名或密码错误",
-  "data": null
-}
-```
+对于文件下载、重定向等不需要标准 JSON 响应的特殊路由，您可以在注册时**不**将它们包含在应用了 `MiddlewareResponse` 的路由组中，或者为它们创建一个不使用该中间件的新路由组。
 
-### 兼容性说明
-
-- 启用标准响应中间件后，所有控制器的返回值都会被自动包装
-- 对于不需要标准格式的特殊端点（如文件下载），可以在路由级别跳过此中间件
-- 中间件与现有的错误处理机制完全兼容
-
-通过使用标准响应格式，您的 API 将具有更好的一致性和可维护性，为前后端协作提供坚实的基础。
+通过这种方式，`MiddlewareResponse` 为您的 API 提供了一致性的基础，同时保留了处理特殊情况的灵活性。

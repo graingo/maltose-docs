@@ -1,122 +1,377 @@
 # 中间件
 
-中间件（Middleware）是 Maltose（以及其底层的 Gin）Web 框架中的一个核心概念。它允许您在请求处理链中插入自定义逻辑，用于处理认证、日志、限流、CORS 等横切关注点。
+中间件是 Web 开发中的核心概念，它允许您在请求到达最终处理器之前或响应发送给客户端之前执行通用逻辑。Maltose 基于 Gin 的中间件机制，提供了强大且灵活的中间件支持。
 
-## 中间件是什么？
+## 中间件概念
 
-在 `mhttp` 中，一个中间件本质上就是一个函数，其签名为 `func(*mhttp.Request)`。它接收一个 `*mhttp.Request` 对象作为参数，该对象封装了当前的 HTTP 请求和响应。
+中间件本质上是一个函数，它可以：
 
-在这个函数内部，您可以执行以下操作：
+- **预处理请求**：在请求到达业务逻辑之前进行身份验证、参数验证、日志记录等
+- **后处理响应**：在响应发送之前进行数据转换、缓存设置、响应头添加等
+- **请求拦截**：根据条件决定是否继续处理请求或直接返回响应
 
-1.  在请求到达最终的业务 Handler 之前，执行某些代码（例如：身份验证）。
-2.  调用 `r.Next()` 将控制权传递给请求处理链中的下一个中间件或最终的 Handler。
-3.  在业务 Handler 执行完毕后，执行某些代码（例如：记录响应日志、修改响应头）。
-4.  在特定条件下，通过调用 `r.Abort()` 或不调用 `r.Next()` 来提前终止请求链（例如：认证失败）。
+### 执行顺序
 
-## 示例：JWT 认证中间件
+中间件按照注册顺序执行，形成一个"洋葱模型"：
 
-下面，我们将通过一个完整的示例，展示如何编写一个用于 JWT（JSON Web Token）身份验证的中间件。
+```
+请求 → 中间件1 → 中间件2 → 业务处理器 → 中间件2 → 中间件1 → 响应
+```
 
-### 1. 定义中间件函数
+## 内置中间件
+
+Maltose 自动注册了以下生产级中间件：
+
+| 中间件              | 功能                     | 自动启用        |
+| ------------------- | ------------------------ | --------------- |
+| **Recovery**        | 捕获 panic，防止服务崩溃 | ✅              |
+| **Trace**           | OpenTelemetry 链路追踪   | ✅              |
+| **Metric**          | 性能指标采集             | ✅              |
+| **DefaultResponse** | 确保响应完整性           | ✅              |
+| **Response**        | 标准响应格式化           | ❌ (需手动启用) |
+
+## 使用中间件
+
+### 全局中间件
+
+全局中间件对所有路由生效：
+
+```go
+s := mhttp.New()
+
+// 启用标准响应中间件
+s.Use(mhttp.MiddlewareResponse())
+
+// 启用 CORS 中间件
+s.Use(mhttp.MiddlewareCORS())
+```
+
+### 路由组中间件
+
+为特定路由组添加中间件：
+
+```go
+// 需要认证的 API 组
+authGroup := s.Group("/api/v1")
+authGroup.Use(JWTAuthMiddleware())
+
+authGroup.GET("/profile", getUserProfile)
+authGroup.POST("/logout", userLogout)
+
+// 公开 API 组
+publicGroup := s.Group("/public")
+publicGroup.GET("/health", healthCheck)
+```
+
+### 单个路由中间件
+
+为特定路由添加中间件：
+
+```go
+// 只有这个路由使用特殊的中间件
+s.GET("/admin/sensitive", AdminOnlyMiddleware(), sensitiveHandler)
+```
+
+## 自定义中间件开发
+
+### 基础结构
+
+Maltose 中间件的基本结构：
+
+```go
+func MyMiddleware() mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        // 请求预处理
+        // ...
+
+        // 继续执行下一个中间件或处理器
+        r.Next()
+
+        // 响应后处理
+        // ...
+    }
+}
+```
+
+### 实际示例：JWT 认证中间件
+
+以下是一个完整的 JWT 认证中间件实现：
 
 ```go
 package middleware
 
 import (
-    "context"
     "strings"
-    "github.com/graingo/maltose/errors/mcode"
+
+    "github.com/golang-jwt/jwt/v5"
     "github.com/graingo/maltose/errors/merror"
+    "github.com/graingo/maltose/errors/mcode"
     "github.com/graingo/maltose/net/mhttp"
 )
 
-// claims a struct that will be encoded to a JWT.
-type claims struct {
-    UserID   uint   `json:"user_id"`
-    Username string `json:"username"`
-    // ... other claims
-}
-
-// AuthMiddleware creates a JWT authentication middleware.
-func AuthMiddleware() mhttp.MiddlewareFunc {
+// JWTAuthMiddleware JWT 认证中间件
+func JWTAuthMiddleware() mhttp.HandlerFunc {
     return func(r *mhttp.Request) {
-        // 1. 从 Authorization header 获取 token
+        // 1. 获取 Authorization 头
         authHeader := r.GetHeader("Authorization")
         if authHeader == "" {
-            r.Error(merror.NewCode(mcode.CodeNotAuthorized, "缺少认证头"))
-            r.Abort()
+            r.AbortWithError(merror.NewCode(mcode.CodeUnauthorized, "缺少认证头"))
             return
         }
 
-        parts := strings.SplitN(authHeader, " ", 2)
-        if !(len(parts) == 2 && parts[0] == "Bearer") {
-            r.Error(merror.NewCode(mcode.CodeNotAuthorized, "认证头格式错误"))
-            r.Abort()
+        // 2. 解析 Bearer Token
+        tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+        if tokenString == authHeader {
+            r.AbortWithError(merror.NewCode(mcode.CodeUnauthorized, "认证头格式错误"))
             return
         }
 
-        tokenString := parts[1]
+        // 3. 验证 JWT Token
+        token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+            // 验证签名方法
+            if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+                return nil, merror.NewCode(mcode.CodeUnauthorized, "无效的签名方法")
+            }
+            return []byte("your-secret-key"), nil
+        })
 
-        // 2. 解析和验证 token
-        // 注意：这里的 "my-secret-key" 应该从配置中安全地获取
-        // "your_jwt_library" 是您选择的 JWT 库，例如 jwt-go, jwx 等
-        claims, err := your_jwt_library.ParseToken(tokenString, "my-secret-key")
-        if err != nil {
-            r.Error(merror.NewCode(mcode.CodeNotAuthorized, "无效的 Token"))
-            r.Abort()
+        if err != nil || !token.Valid {
+            r.AbortWithError(merror.NewCode(mcode.CodeUnauthorized, "无效的令牌"))
             return
         }
 
-        // 3. 将解析出的用户信息存入 context
-        // 这样，后续的业务逻辑就可以从中获取当前用户信息
-        ctx := r.Request.Context()
-        ctx = context.WithValue(ctx, "userID", claims.UserID)
-        ctx = context.WithValue(ctx, "username", claims.Username)
+        // 4. 提取用户信息
+        if claims, ok := token.Claims.(jwt.MapClaims); ok {
+            // 将用户信息存储到上下文中
+            r.SetCtxVar("user_id", claims["user_id"])
+            r.SetCtxVar("username", claims["username"])
+        }
 
-        // 用新的 context 替换掉旧的
-        r.Request = r.Request.WithContext(ctx)
-
-        // 4. 调用 Next() 继续处理请求
+        // 5. 继续执行下一个中间件
         r.Next()
     }
 }
 ```
 
-**代码解释**:
-
-- 我们从 `Authorization` 请求头中提取 `Bearer Token`。
-- 我们使用一个（假设的）JWT 库来解析和验证这个 Token。在实际项目中，您需要选择一个具体的库来完成这部分工作。
-- 如果 Token 无效或缺失，我们通过 `r.Error()` 记录一个错误，并调用 `r.Abort()` 来立即终止请求，防止它进入后续的业务逻辑。
-- 如果 Token 有效，我们将解析出的用户信息（如 `UserID`）存入 `context.Context` 中。这是一个非常重要的实践，它使得下游的任何函数都能安全地获取到当前用户的身份信息。
-- 最后，我们调用 `r.Next()`，允许请求继续传递。
-
-### 2. 使用中间件
-
-现在，您可以将这个中间件应用到需要保护的路由上。
+### 使用认证中间件
 
 ```go
-package route
+func main() {
+    s := mhttp.New()
 
-import (
-    "my-app/internal/controller/user"
-    "my-app/internal/middleware" // 引入我们刚刚创建的中间件
-    "github.com/graingo/maltose/net/mhttp"
-)
+    // 公开路由
+    s.POST("/login", loginHandler)
+    s.GET("/health", healthHandler)
 
-func Register(s *mhttp.Server) {
-    // 公共接口，无需认证
-    s.POST("/login", user.Login)
-    s.POST("/register", user.Register)
-
-    // 需要认证的接口分组
-    // 我们将 AuthMiddleware 应用到这个分组上
-    authGroup := s.Group("/api", mhttp.WithMiddleware(middleware.AuthMiddleware()))
+    // 需要认证的路由组
+    authGroup := s.Group("/api/v1")
+    authGroup.Use(JWTAuthMiddleware())
     {
-        authGroup.GET("/profile", user.GetProfile)
-        authGroup.PUT("/profile", user.UpdateProfile)
-        // ... 其他需要认证的路由
+        authGroup.GET("/profile", getUserProfile)
+        authGroup.PUT("/profile", updateUserProfile)
+        authGroup.POST("/logout", userLogout)
+    }
+
+    s.Run()
+}
+
+// 在处理器中获取用户信息
+func getUserProfile(r *mhttp.Request) {
+    userID := r.GetCtxVar("user_id")
+    username := r.GetCtxVar("username")
+
+    // 使用用户信息处理业务逻辑
+    // ...
+}
+```
+
+## 高级中间件模式
+
+### 条件中间件
+
+根据条件决定是否执行中间件逻辑：
+
+```go
+func ConditionalMiddleware(condition func(*mhttp.Request) bool) mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        if condition(r) {
+            // 执行特定逻辑
+            doSomething(r)
+        }
+        r.Next()
+    }
+}
+
+// 使用示例
+s.Use(ConditionalMiddleware(func(r *mhttp.Request) bool {
+    return strings.HasPrefix(r.Request.URL.Path, "/api/")
+}))
+```
+
+### 参数化中间件
+
+创建可配置的中间件：
+
+```go
+func RateLimitMiddleware(maxRequests int, duration time.Duration) mhttp.HandlerFunc {
+    limiter := rate.NewLimiter(rate.Every(duration), maxRequests)
+
+    return func(r *mhttp.Request) {
+        if !limiter.Allow() {
+            r.AbortWithError(merror.NewCode(mcode.CodeTooManyRequests, "请求过于频繁"))
+            return
+        }
+        r.Next()
+    }
+}
+
+// 使用示例
+s.Use(RateLimitMiddleware(100, time.Minute)) // 每分钟最多 100 次请求
+```
+
+### 异步中间件
+
+执行不阻塞请求的后台任务：
+
+```go
+func AsyncLoggingMiddleware() mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        start := time.Now()
+
+        // 继续处理请求
+        r.Next()
+
+        // 异步记录日志
+        go func() {
+            duration := time.Since(start)
+            logEntry := LogEntry{
+                Method:     r.Request.Method,
+                Path:       r.Request.URL.Path,
+                Duration:   duration,
+                StatusCode: r.Writer.Status(),
+                UserAgent:  r.GetHeader("User-Agent"),
+                Timestamp:  time.Now(),
+            }
+
+            // 发送到日志系统
+            sendToLogSystem(logEntry)
+        }()
     }
 }
 ```
 
-通过这种方式，所有 `/api` 前缀下的路由都会先经过 `AuthMiddleware` 的检查，只有在认证通过后，请求才能真正到达 `user.GetProfile` 等业务处理器。这极大地提高了代码的模块化和复用性。
+## 中间件最佳实践
+
+### 1. 性能考虑
+
+- **避免重复计算**：将计算结果缓存在上下文中
+- **异步处理**：对于耗时操作，考虑异步执行
+- **资源管理**：及时释放资源，避免内存泄漏
+
+```go
+func OptimizedMiddleware() mhttp.HandlerFunc {
+    // 预计算或初始化资源
+    cache := make(map[string]interface{})
+
+    return func(r *mhttp.Request) {
+        // 使用预计算的资源
+        if value, exists := cache[r.Request.URL.Path]; exists {
+            r.SetCtxVar("cached_value", value)
+        }
+
+        r.Next()
+    }
+}
+```
+
+### 2. 错误处理
+
+- **使用统一的错误格式**：配合 `merror` 和 `mcode` 系统
+- **适当的 HTTP 状态码**：确保状态码与错误类型匹配
+- **详细的错误信息**：帮助调试和问题定位
+
+```go
+func SafeMiddleware() mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        defer func() {
+            if err := recover(); err != nil {
+                // 记录错误
+                logger.Error("中间件 panic", "error", err)
+
+                // 返回标准错误响应
+                r.AbortWithError(merror.NewCode(mcode.CodeInternalError, "服务器内部错误"))
+            }
+        }()
+
+        r.Next()
+    }
+}
+```
+
+### 3. 可测试性
+
+编写可测试的中间件：
+
+```go
+func TestableMiddleware(validator func(string) bool) mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        token := r.GetHeader("X-API-Key")
+        if !validator(token) {
+            r.AbortWithError(merror.NewCode(mcode.CodeUnauthorized, "无效的 API 密钥"))
+            return
+        }
+        r.Next()
+    }
+}
+
+// 测试代码
+func TestMiddleware(t *testing.T) {
+    middleware := TestableMiddleware(func(token string) bool {
+        return token == "valid-token"
+    })
+
+    // 测试中间件逻辑
+    // ...
+}
+```
+
+## 常用中间件集合
+
+### CORS 中间件
+
+```go
+func CORSMiddleware() mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        r.Header("Access-Control-Allow-Origin", "*")
+        r.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+        r.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+        if r.Request.Method == "OPTIONS" {
+            r.AbortWithStatus(204)
+            return
+        }
+
+        r.Next()
+    }
+}
+```
+
+### 请求 ID 中间件
+
+```go
+func RequestIDMiddleware() mhttp.HandlerFunc {
+    return func(r *mhttp.Request) {
+        requestID := r.GetHeader("X-Request-ID")
+        if requestID == "" {
+            requestID = generateUUID()
+        }
+
+        r.SetCtxVar("request_id", requestID)
+        r.Header("X-Request-ID", requestID)
+
+        r.Next()
+    }
+}
+```
+
+通过合理使用中间件，您可以构建出功能强大、可维护性高的 Web 应用程序。记住，中间件的设计应该遵循单一职责原则，每个中间件只负责一个特定的功能。
