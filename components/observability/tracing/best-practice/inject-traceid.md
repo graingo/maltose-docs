@@ -34,13 +34,10 @@ import (
     "context"
     "fmt"
 
-    "github.com/graingo/maltose/trace"
+    trace "github.com/graingo/maltose/net/mtrace"
 )
 
-func main() {
-    // 创建一个上下文
-    ctx := context.Background()
-
+func DoSomethingWithTraceID(ctx context.Context) {
     // 创建一个 Span
     ctx, span := trace.NewSpan(ctx, "example")
     defer span.End()
@@ -57,7 +54,16 @@ func main() {
 在 HTTP 处理器中，我们可以从请求上下文中获取 TraceID：
 
 ```go
-func handler(c *maltose.Context) {
+package main
+
+import (
+    "fmt"
+    "net/http"
+    "github.com/graingo/maltose/net/mhttp"
+    trace "github.com/graingo/maltose/net/mtrace"
+)
+
+func handler(c *mhttp.Context) {
     // 获取 TraceID
     traceID := trace.TraceIDFromContext(c.Request.Context())
 
@@ -75,9 +81,9 @@ func handler(c *maltose.Context) {
 
 将 TraceID 注入到日志中是一个非常有用的实践，它可以帮助我们将日志与链路追踪关联起来，方便排查问题。Maltose 框架的日志系统已经与链路追踪集成，可以自动将 TraceID 注入到日志中。
 
-### 使用 WithContext 方法
+### 使用 mlog 包
 
-在使用日志系统时，我们可以使用 `WithContext` 方法将上下文传递给日志系统，日志系统会自动从上下文中提取 TraceID 并添加到日志中：
+在使用日志系统时，直接调用 `mlog` 包的函数并传入上下文，日志组件会自动从上下文中提取 TraceID 并添加到日志记录中：
 
 ```go
 package main
@@ -85,24 +91,21 @@ package main
 import (
     "context"
 
-    "github.com/graingo/maltose/log"
-    "github.com/graingo/maltose/trace"
+    "github.com/graingo/maltose/os/mlog"
+    trace "github.com/graingo/maltose/net/mtrace"
 )
 
-func main() {
-    // 创建一个上下文
-    ctx := context.Background()
-
+func DoSomething(ctx context.Context) {
     // 创建一个 Span
     ctx, span := trace.NewSpan(ctx, "example")
     defer span.End()
 
-    // 使用 WithContext 方法将上下文传递给日志系统
-    log.WithContext(ctx).Info("这是一条带有 TraceID 的日志")
+    // 直接使用 mlog 包的函数，并传入上下文
+    mlog.Info(ctx, "这是一条带有 TraceID 的日志")
 }
 ```
 
-输出的日志中会包含 TraceID：
+输出的日志中会自动包含 TraceID：
 
 ```
 2023-01-01T12:00:00.000Z INFO 这是一条带有 TraceID 的日志 trace_id=4bf92f3577b34da6a3ce929d0e0e4736
@@ -110,32 +113,22 @@ func main() {
 
 ### 在 HTTP 处理器中使用
 
-在 HTTP 处理器中，我们可以使用请求的上下文：
+在 HTTP 处理器中，我们可以直接使用请求的上下文：
 
 ```go
-func handler(c *maltose.Context) {
+package main
+
+import (
+    "github.com/graingo/maltose/net/mhttp"
+    "github.com/graingo/maltose/os/mlog"
+)
+
+func handler(c *mhttp.Context) {
     // 使用请求上下文
-    log.WithContext(c.Request.Context()).Info("处理请求")
+    mlog.Info(c.Request.Context(), "处理请求")
 
     // 处理请求...
 }
-```
-
-### 自定义日志字段
-
-如果需要自定义日志字段，可以使用 `WithFields` 方法：
-
-```go
-log.WithContext(ctx).WithFields(log.Fields{
-    "user_id": 123,
-    "action":  "login",
-}).Info("用户登录")
-```
-
-输出的日志中会包含自定义字段和 TraceID：
-
-```
-2023-01-01T12:00:00.000Z INFO 用户登录 user_id=123 action=login trace_id=4bf92f3577b34da6a3ce929d0e0e4736
 ```
 
 ## 将 TraceID 返回给客户端
@@ -145,7 +138,15 @@ log.WithContext(ctx).WithFields(log.Fields{
 ### 在响应头中返回 TraceID
 
 ```go
-func handler(c *maltose.Context) {
+package main
+
+import (
+    "net/http"
+    "github.com/graingo/maltose/net/mhttp"
+    trace "github.com/graingo/maltose/net/mtrace"
+)
+
+func handler(c *mhttp.Context) {
     // 获取 TraceID
     traceID := trace.TraceIDFromContext(c.Request.Context())
 
@@ -162,7 +163,15 @@ func handler(c *maltose.Context) {
 ### 在响应体中返回 TraceID
 
 ```go
-func handler(c *maltose.Context) {
+package main
+
+import (
+    "net/http"
+    "github.com/graingo/maltose/net/mhttp"
+    trace "github.com/graingo/maltose/net/mtrace"
+)
+
+func handler(c *mhttp.Context) {
     // 获取 TraceID
     traceID := trace.TraceIDFromContext(c.Request.Context())
 
@@ -180,22 +189,22 @@ func handler(c *maltose.Context) {
 
 ### 1. 在所有日志中包含 TraceID
 
-确保在所有日志中都包含 TraceID，这样可以方便地将日志与链路追踪关联起来：
-
-```go
-// 好的做法
-log.WithContext(ctx).Info("处理请求")
-
-// 不好的做法
-log.Info("处理请求") // 没有 TraceID
-```
+由于 `mlog` 包的日志函数强制要求传入 `context` 参数，因此只要正确使用，就能确保所有日志都自动包含 TraceID。
 
 ### 2. 在错误响应中返回 TraceID
 
 在返回错误响应时，包含 TraceID 可以帮助客户端报告问题：
 
 ```go
-func handler(c *maltose.Context) {
+package main
+
+import (
+    "net/http"
+    "github.com/graingo/maltose/net/mhttp"
+    trace "github.com/graingo/maltose/net/mtrace"
+)
+
+func handler(c *mhttp.Context) {
     // 获取 TraceID
     traceID := trace.TraceIDFromContext(c.Request.Context())
 
@@ -218,8 +227,15 @@ func handler(c *maltose.Context) {
 可以使用中间件统一处理 TraceID，例如将 TraceID 添加到所有响应的头部：
 
 ```go
-func TraceIDMiddleware() maltose.HandlerFunc {
-    return func(c *maltose.Context) {
+package main
+
+import (
+    "github.com/graingo/maltose/net/mhttp"
+    trace "github.com/graingo/maltose/net/mtrace"
+)
+
+func TraceIDMiddleware() mhttp.HandlerFunc {
+    return func(c *mhttp.Context) {
         // 获取 TraceID
         traceID := trace.TraceIDFromContext(c.Request.Context())
 
@@ -232,7 +248,7 @@ func TraceIDMiddleware() maltose.HandlerFunc {
 }
 
 // 使用中间件
-app := maltose.New()
+app := mhttp.New()
 app.Use(TraceIDMiddleware())
 ```
 
@@ -240,7 +256,6 @@ app.Use(TraceIDMiddleware())
 
 在 API 文档中说明 TraceID 的用途和获取方式，以便客户端开发者了解如何使用 TraceID 报告问题：
 
-````
 # 错误处理
 
 当发生错误时，API 会返回一个包含错误信息和 TraceID 的 JSON 响应：
@@ -250,11 +265,9 @@ app.Use(TraceIDMiddleware())
   "error": "发生了一个错误",
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736"
 }
-````
+```
 
 请在报告问题时提供 TraceID，以便我们更快地定位和解决问题。
-
-```
 
 ## 小结
 
@@ -263,4 +276,7 @@ app.Use(TraceIDMiddleware())
 TraceID 是链路追踪中的核心概念，它可以帮助我们将分散的操作关联起来，形成一个完整的调用链。在 Maltose 框架中，TraceID 的注入是自动完成的，我们只需要在需要的地方获取和使用 TraceID 即可。
 
 将 TraceID 注入到日志中，可以帮助我们将日志与链路追踪关联起来，方便排查问题。将 TraceID 返回给客户端，可以帮助客户端报告问题，提高问题排查的效率。
+
+```
+
 ```

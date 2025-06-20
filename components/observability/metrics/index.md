@@ -69,6 +69,7 @@ import (
     "context"
     "time"
     "github.com/graingo/maltose/os/mmetric"
+    "go.opentelemetry.io/otel/attribute"
 )
 
 // 1. 创建一个 Counter 指标
@@ -84,10 +85,10 @@ func CreateOrder(ctx context.Context) {
     // ... 业务逻辑 ...
 
     // 增加计数器的值，并附带标签
-    orderCounter.Inc(ctx, mmetric.WithAttributes(mmetric.AttributeMap{
-        "payment_channel": "alipay",
-        "order_type":      "normal",
-    }))
+    orderCounter.Inc(ctx, mmetric.WithAttributes(
+        attribute.String("payment_channel", "alipay"),
+        attribute.String("order_type",      "normal"),
+    ))
 }
 ```
 
