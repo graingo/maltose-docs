@@ -46,7 +46,7 @@ export default defineConfig({
                 { text: "中间件", link: "/components/server/middleware" },
               ],
             },
-            { text: "HTTP 客户端", link: "/components/mclient" },
+            { text: "HTTP 客户端", link: "/components/http-client" },
             { text: "配置管理", link: "/components/configuration" },
             { text: "日志", link: "/components/logging" },
             {
