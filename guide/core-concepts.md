@@ -56,3 +56,78 @@ Maltose 认为，开发者应当专注于创造性的业务逻辑，而不是编
 - `gen logic`: 从 Service 接口生成业务逻辑骨架。
 
 这些工具不仅能提高开发效率，还能确保项目中的模板代码遵循统一的规范和最佳实践。
+
+## 5. 应用生命周期 (Application Lifecycle)
+
+Maltose 提供了一个优雅且强大的应用生命周期管理器 `m.App`，它负责统一管理应用中所有服务的启动、运行和优雅关闭。这确保了应用在启动时有序，在停止时能够安全地释放资源，避免数据丢失或状态不一致。
+
+### 核心用法
+
+管理一个应用的完整生命周期非常简单，只需将所有需要独立运行的服务（如 HTTP 服务器）和需要在应用退出时执行的清理函数（关停钩子）注册到 `App` 实例中，然后调用 `Run()` 方法即可。
+
+```go
+// in main.go
+package main
+
+import (
+	"context"
+	"fmt"
+	"your_project/internal/router" // 替换为你的项目路径
+	"github.com/a-t-com/fino/maltose/frame/m"
+	"github.com/a-t-com/fino/maltose/net/mhttp"
+	"github.com/a-t-com/fino/maltose/os/mcfg"
+	"github.com/a-t-com/fino/maltose/os/mlog"
+)
+
+func main() {
+	// 创建 HTTP 服务器
+	s := mhttp.NewServer()
+	s.SetAddr(":8080")
+
+	// 初始化 Tracer Provider
+	shutdown, err := provider.InitTracerProvider()
+	if err != nil {
+		mlog.Fatalf(context.Background(), "failed to init tracer provider: %v", err)
+	}
+
+	// 使用 m.App 管理生命周期
+	err = m.NewApp(
+		// 注册需要独立运行的服务
+		m.WithServer(s),
+		// 注册应用退出时的清理钩子
+		m.WithShutdownHook(func(ctx context.Context) error {
+			fmt.Println("Closing tracer provider...")
+			return shutdown(ctx)
+		}),
+	).Run()
+
+	if err != nil {
+		mlog.Errorf(context.Background(), "app run failed: %v", err)
+	}
+}
+```
+
+### AppServer 接口
+
+任何实现了 `m.AppServer` 接口的结构体都可以被 `m.WithServer` 注册。`maltose` 内置的 `mhttp.Server` 就实现了这个接口。
+
+```go
+type AppServer interface {
+    Start(ctx context.Context) error
+    Shutdown(ctx context.Context) error
+}
+```
+
+- `Start(ctx)`: 启动服务，该方法应该是阻塞式的，直到服务停止或 `ctx` 被取消。
+- `Shutdown(ctx)`: 优雅地关闭服务。框架会为这个 `ctx` 设置一个超时时间（默认为 10 秒），以防止关停过程无限阻塞。
+
+### 关停钩子 (Shutdown Hooks)
+
+通过 `m.WithShutdownHook` 注册的函数会在应用接收到退出信号（如 `SIGINT`, `SIGTERM`）时被调用。钩子函数会**逆序执行**，即最后注册的钩子最先执行。
+
+这对于安全地释放资源至关重要，例如：
+
+- 关闭数据库连接池
+- 等待消息队列的生产者完成发送
+- 将缓存中的数据刷回磁盘
+- 调用 Tracer Provider 的 `Shutdown` 方法，确保所有遥测数据都被导出
