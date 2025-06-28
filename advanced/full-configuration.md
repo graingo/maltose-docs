@@ -35,19 +35,30 @@ server:
 # ----------------------------------------------------------------
 log:
   # 日志级别: debug, info, warn, error, fatal, panic
-  level: "debug"
-  # 日志文件存放目录 (如果为空，则不输出到文件)
-  path: "./logs"
-  # 日志文件名，支持日期占位符 {Y}, {m}, {d}, {H}
-  file: "{Y}-{m}-{d}.log"
+  level: "info"
   # 是否同时将日志输出到标准输出 (控制台)
   stdout: true
   # 日志格式: "text" 或 "json"
   format: "json"
-  # 日志文件保留天数，0 表示不自动清理
-  autoClean: 7
   # 配置从 context.Context 中自动提取并添加到日志字段的键名列表
   ctxKeys: ["userID", "requestURI"]
+
+  # --- 文件日志轮转配置 ---
+  # 如果省略 filepath, 则不输出到文件
+  #
+  # 示例1 (按大小轮转):
+  # filepath: "logs/app.log"
+  # max_size: 100
+  # max_backups: 10
+  # max_age: 7
+  #
+  # 示例2 (按日期轮转):
+  # filepath: "logs/app-{YYYY}-{MM}-{DD}.log"
+  # max_age: 30
+  filepath: "logs/app.log"
+  max_size: 100
+  max_backups: 10
+  max_age: 7
 
 # ----------------------------------------------------------------
 # Database (mdb)

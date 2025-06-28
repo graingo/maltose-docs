@@ -7,8 +7,8 @@
 - **结构化日志**: 支持 `text` 和 `json` 两种输出格式，便于机器解析和日志系统采集。
 - **日志分级**: 支持 `Debug`, `Info`, `Warn`, `Error`, `Fatal`, `Panic` 等多个日志级别。
 - **自动 TraceID 注入**: 自动从 `context.Context` 中提取 `TraceID` 和 `SpanID` 并添加到每一条日志中，轻松实现日志的链路追踪。
-- **文件归档与清理**: 内置了日志文件的按天轮转和自动清理功能，无需借助外部工具。
-- **配置驱动**: 支持通过 `Config` 结构体或 `map` 对日志进行全面的配置。
+- **强大的日志轮转**: 内置了灵活的文件日志轮转功能，支持**按大小**和**按日期**两种模式，并能自动清理过期日志。
+- **配置驱动**: 支持通过配置文件对日志进行全面的配置。
 - **上下文信息注入**: 可以配置从 `context.Context` 中自动提取指定的键值对并添加到日志字段中。
 
 ## 快速上手
@@ -39,40 +39,60 @@ func main() {
 
 ## 配置
 
-`mlog` 的强大之处在于其灵活的配置。您可以通过 `m.Log().SetConfig` 或 `m.Log().SetConfigWithMap` 来进行配置。
+`mlog` 的所有行为都由配置驱动。建议将日志配置写入 `config.yaml` 中，框架启动时会自动加载。
 
 ### 配置文件示例
 
-您可以将日志配置写入 `config.yaml` 中，然后通过 `mcfg` 组件加载并设置。
+以下是两个典型的配置示例，分别演示了**按大小轮转**和**按日期轮转**。
+
+#### 示例 1: 按大小轮转 (Size-based Rotation)
+
+当日志文件达到指定大小时会自动切割，这是最常用的模式。
 
 ```yaml
 # file: config.yaml
 log:
-  level: "debug" # 日志级别
-  path: "./logs" # 日志文件存放目录
-  file: "{Y}-{m}-{d}.log" # 日志文件名，支持日期占位符
-  stdout: true # 是否同时输出到控制台
-  format: "json" # 日志格式: text 或 json
-  autoClean: 7 # 日志文件保留天数，0表示不清理
-  ctxKeys: ["userID", "requestURI"] # 从 context 中自动提取的字段
+  level: "info"
+  stdout: true
+  format: "json"
+  ctxKeys: ["userID"]
+
+  # 文件日志配置
+  filepath: "/var/log/app/maltose.log" # 日志文件路径
+  max_size: 100 # (MB) 单个文件最大体积
+  max_backups: 10 # 最多保留的旧文件数量
+  max_age: 7 # (天) 旧文件最大保留天数
 ```
 
-### 代码中加载配置
+#### 示例 2: 按日期轮转 (Date-based Rotation)
 
-```go
-// 假设您已经通过 m.Config() 加载了配置
-logConfig, _ := m.Config().Get(ctx, "log")
+如果你希望每天生成一个新的日志文件，可以使用日期模式。
 
-// 将 map 配置应用到默认 logger
-err := m.Log().SetConfigWithMap(logConfig.Map())
-if err != nil {
-    panic(err)
-}
+```yaml
+# file: config.yaml
+log:
+  level: "info"
+  stdout: false
+  format: "json"
 
-// 现在 mlog 的行为就和配置文件中定义的一致了
-// 日志会以 json 格式输出到 ./logs/YYYY-MM-DD.log 文件和控制台
-m.Log().Debug(ctx, "这是一条 Debug 日志")
+  # 文件日志配置
+  # 每天生成一个新日志文件，例如：access-2023-10-27.log
+  filepath: "/var/log/app/access-{YYYY}-{MM}-{DD}.log"
+  max_age: 30 # (天) 日志文件最长保留30天
 ```
+
+### 配置参数详解
+
+- `level`: 日志的输出级别。可选值为 `debug`, `info`, `warn`, `error`, `fatal`, `panic`。
+- `stdout`: 全局开关，控制是否将日志打印到标准输出（控制台）。
+- `format`: 日志格式，支持 `text` 和 `json`。默认为 `text`。
+- `ctxKeys`: 一个字符串数组，定义了需要从 `context.Context` 中自动提取并加入到日志字段的键名。
+- `filepath`: 日志文件的完整路径。如果该字段不为空，则会启用文件日志。
+  - 在 `size` 模式下，这是一个固定路径，如 `/var/log/app.log`。
+  - 在 `date` 模式下，可以嵌入日期占位符，如 `/var/log/app-{YYYY}-{MM}-{DD}.log`。支持的占位符包括 `{YYYY}`, `{MM}`, `{DD}` 等。
+- `max_size`: **[仅 size 模式]** 单个日志文件的最大体积 (MB)，超过此大小会触发轮转。
+- `max_backups`: **[仅 size 模式]** 当按大小轮转时，保留的旧日志文件的最大数量。
+- `max_age`: **[通用]** 日志文件的最大保留天数（`size` 模式下指备份文件，`date` 模式下指所有匹配模式的文件）。
 
 ## 核心功能详解
 
