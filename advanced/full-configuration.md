@@ -28,6 +28,11 @@ server:
   openapiPath: "/api.json"
   # Swagger UI 的访问路径
   swaggerPath: "/swagger"
+  # 日志配置（可选，无则使用 全局日志配置）
+  logger:
+    level: "info"
+    stdout: true
+    filepath: "logs/http.log"
 
 # ----------------------------------------------------------------
 # Log (mlog)
@@ -65,37 +70,39 @@ log:
 # 关系型数据库相关配置 (支持多实例)
 # ----------------------------------------------------------------
 database:
-  # 默认实例
-  default:
-    # 数据库类型: mysql, pgsql, sqlite
-    type: "mysql"
-    host: "127.0.0.1"
-    port: "3306"
-    user: "root"
-    password: "your_password"
-    dbname: "my_database"
-    # 连接池配置
-    maxIdleConnection: 10
-    maxOpenConnection: 100
-    # SQL 执行时间超过该值，会被 mlog 记录为 Warn 级别的慢查询日志
-    slowThreshold: "500ms"
-    # GORM 日志级别: silent, error, warn, info
-    logLevel: "info"
-
-    # 读写分离配置 (可选)
-    replicas:
-      # 第一个只读副本
-      - host: "192.168.1.2"
-        port: "3306"
-        user: "readonly_user"
-        password: "your_password"
-        dbname: "my_database"
-      # 第二个只读副本
-      - host: "192.168.1.3"
-        port: "3306"
-        user: "readonly_user"
-        password: "your_password"
-        dbname: "my_database"
+  # 数据库类型: mysql, pgsql, sqlite
+  type: "mysql"
+  host: "127.0.0.1"
+  port: "3306"
+  user: "root"
+  password: "your_password"
+  dbname: "my_database"
+  # 或者直接使用 DSN 连接
+  dsn: "root:your_password@tcp(127.0.0.1:3306)/my_database?charset=utf8mb4&parseTime=True&loc=Local"
+  # 连接池配置
+  maxIdleConnection: 10
+  maxOpenConnection: 100
+  # SQL 执行时间超过该值，会被 mlog 记录为 Warn 级别的慢查询日志
+  slowThreshold: "500ms"
+  # 日志配置（可选，无则使用 全局日志配置）
+  logger:
+    level: "info"
+    stdout: true
+    filepath: "logs/database.log"
+  # 读写分离配置 (可选)
+  replicas:
+    # 第一个只读副本
+    - host: "192.168.1.2"
+      port: "3306"
+      user: "readonly_user"
+      password: "your_password"
+      dbname: "my_database"
+    # 第二个只读副本
+    - host: "192.168.1.3"
+      port: "3306"
+      user: "readonly_user"
+      password: "your_password"
+      dbname: "my_database"
 
 # ----------------------------------------------------------------
 # Redis (mredis)
@@ -110,6 +117,11 @@ redis:
     poolSize: 10 # 连接池大小
     # 命令执行时间超过该值，会被 mlog 记录为 Warn 级别的慢命令日志
     slowThreshold: "20ms"
+    # 日志配置（可选，无则使用 全局日志配置）
+    logger:
+      level: "info"
+      stdout: true
+      filepath: "logs/redis.log"
 
   # 用于缓存的另一个实例
   cache:
