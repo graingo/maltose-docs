@@ -24,9 +24,9 @@ redis:
     address: "127.0.0.1:6379"
     password: "" # 密码，如果没有则留空
     db: 0 # 数据库编号
-    poolSize: 10 # 连接池大小
+    pool_size: 10 # 连接池大小
     # 慢查询阈值，超过该值会被 mlot 记录为 Warn 级别日志
-    slowThreshold: "20ms"
+    slow_threshold: "20ms"
 ```
 
 ### 2. 获取 Redis 实例

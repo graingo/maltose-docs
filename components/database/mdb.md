@@ -29,12 +29,12 @@ database:
     port: "3306"
     user: "root"
     password: "your_password"
-    dbname: "my_database"
+    db_name: "my_database"
     # 连接池配置
-    maxIdleConnection: 10
-    maxOpenConnection: 100
-    # 慢查询阈值，超过该值会被 mlot 记录为 Warn 级别日志
-    slowThreshold: "500ms"
+    max_idle_connection: 10
+    max_open_connection: 100
+    # 慢查询阈值，超过该值会被记录为 Warn 级别日志
+    slow_threshold: "500ms"
 ```
 
 ### 2. 获取数据库实例
