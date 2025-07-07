@@ -15,19 +15,19 @@ server:
   # 服务器监听地址和端口
   address: ":8080"
   # 读取请求头的最长时间
-  readTimeout: "5s"
+  read_timeout: "5s"
   # 写入响应的最长时间
-  writeTimeout: "10s"
+  write_timeout: "10s"
   # 连接保持空闲的最长时间
-  idleTimeout: "15s"
+  idle_timeout: "15s"
   # 是否启用优雅停机
-  gracefulEnable: true
+  graceful_enable: true
   # 优雅停机的最长等待时间
-  gracefulTimeout: "10s"
+  graceful_timeout: "10s"
   # OpenAPI 规范的访问路径
-  openapiPath: "/api.json"
+  openapi_path: "/api.json"
   # Swagger UI 的访问路径
-  swaggerPath: "/swagger"
+  swagger_path: "/swagger"
   # 日志配置（可选，无则使用 全局日志配置）
   logger:
     level: "info"
@@ -76,14 +76,14 @@ database:
   port: "3306"
   user: "root"
   password: "your_password"
-  dbname: "my_database"
+  db_name: "my_database"
   # 或者直接使用 DSN 连接
   dsn: "root:your_password@tcp(127.0.0.1:3306)/my_database?charset=utf8mb4&parseTime=True&loc=Local"
   # 连接池配置
-  maxIdleConnection: 10
-  maxOpenConnection: 100
+  max_idle_connection: 10
+  max_open_connection: 100
   # SQL 执行时间超过该值，会被 mlog 记录为 Warn 级别的慢查询日志
-  slowThreshold: "500ms"
+  slow_threshold: "500ms"
   # 日志配置（可选，无则使用 全局日志配置）
   logger:
     level: "info"
@@ -96,13 +96,13 @@ database:
       port: "3306"
       user: "readonly_user"
       password: "your_password"
-      dbname: "my_database"
+      db_name: "my_database"
     # 第二个只读副本
     - host: "192.168.1.3"
       port: "3306"
       user: "readonly_user"
       password: "your_password"
-      dbname: "my_database"
+      db_name: "my_database"
 
 # ----------------------------------------------------------------
 # Redis (mredis)
@@ -114,9 +114,9 @@ redis:
     address: "127.0.0.1:6379"
     password: "" # 密码，如果没有则留空
     db: 0 # 数据库编号
-    poolSize: 10 # 连接池大小
+    pool_size: 10 # 连接池大小
     # 命令执行时间超过该值，会被 mlog 记录为 Warn 级别的慢命令日志
-    slowThreshold: "20ms"
+    slow_threshold: "20ms"
     # 日志配置（可选，无则使用 全局日志配置）
     logger:
       level: "info"
@@ -128,13 +128,13 @@ redis:
     address: "127.0.0.1:6379"
     password: ""
     db: 1 # 推荐为缓存使用独立的 db
-    poolSize: 20
-    slowThreshold: "50ms"
+    pool_size: 20
+    slow_threshold: "50ms"
 
 # ----------------------------------------------------------------
 # Trace (mtrace)
 # 链路追踪相关配置。
-# 注意：以下配置主要用于初始化 contrib/trace/otlptrace 包。
+# 注意：以下配置主要用于初始化 contrib/trace/otlptrace 包，不会被框架自动加载。
 # ----------------------------------------------------------------
 trace:
   # 是否启用链路追踪
@@ -150,18 +150,18 @@ trace:
   # 导出超时时间
   timeout: "10s"
   # (仅 HTTP) URL 路径
-  urlPath: "/v1/traces"
+  url_path: "/v1/traces"
   # (仅 HTTP) 压缩级别, 1 代表 gzip
   compression: 1
 
   # --- Sampler 配置 ---
   # 采样率 (0.0 到 1.0, 1.0 表示全部采样)
-  samplingRate: 1.0
+  sampling_rate: 1.0
 
 # ----------------------------------------------------------------
 # Metric (mmetric)
 # 指标监控相关配置。
-# 注意：以下配置主要用于初始化 contrib/metric/otlpmetric 包。
+# 注意：以下配置主要用于初始化 contrib/metric/otlpmetric 包，不会被框架自动加载。
 # ----------------------------------------------------------------
 metric:
   # 是否启用指标监控
@@ -177,9 +177,9 @@ metric:
   # 导出超时时间
   timeout: "10s"
   # (仅 HTTP) URL 路径
-  urlPath: "/v1/metrics"
+  url_path: "/v1/metrics"
   # 指标导出间隔
-  exportInterval: "10s"
+  export_interval: "10s"
 
 **注意**:
 
