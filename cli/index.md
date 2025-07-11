@@ -16,11 +16,22 @@ go install github.com/graingo/maltose/cmd/maltose@latest
 maltose --version
 ```
 
-## 命令概览
+## 开发流程概览
 
-### `maltose new`
+Maltose CLI 工具的设计遵循了典型的 Web 应用开发流程。以下是推荐的使用顺序：
 
-此命令用于基于官方模板，快速创建一个全新的 Maltose 项目。
+1. **项目初始化**: `maltose new` - 创建新项目
+2. **数据层生成**: `maltose gen model` → `maltose gen dao` - 从数据库生成数据访问层
+3. **API 层生成**: `maltose gen service` → `maltose gen logic` - 从 API 定义生成业务逻辑层
+4. **文档生成**: `maltose gen openapi` - 生成 API 文档
+
+## 命令详解
+
+### 1. 项目初始化
+
+#### `maltose new`
+
+**使用场景**: 开始一个全新的 Maltose 项目时使用。
 
 - **用法**
 
@@ -39,14 +50,22 @@ maltose --version
   - `[project-name]` (必需): 您要创建的新项目的名称。
 
 - **示例**:
+
   ```bash
   # 在当前目录下创建一个名为 my-app 的新项目
   maltose new my-app
+  cd my-app
+  go mod tidy
+  go run .
   ```
 
-### `maltose gen model`
+- **后续步骤**: 项目创建后，您可以立即运行 `go run .` 来启动示例应用，然后根据业务需求继续使用其他生成命令。
 
-从数据库表结构反向生成 GORM Model（实体）文件。
+### 2. 数据层生成
+
+#### `maltose gen model`
+
+**使用场景**: 当您已有数据库表结构，需要快速生成对应的 Go 结构体时使用。这通常是数据驱动开发的第一步。
 
 - **用法**
 
@@ -78,11 +97,16 @@ maltose --version
 
   # 只为 users 和 orders 表生成模型
   maltose gen model -t users,orders
+
+  # 生成所有表但排除系统表
+  maltose gen model -x sys_log,sys_config
   ```
 
-### `maltose gen dao`
+- **最佳实践**: 建议在项目开始阶段，数据库表结构相对稳定后执行此命令。生成的 entity 文件不应手动修改，如需扩展可在 `do` 目录下创建自定义结构体。
 
-基于数据库表生成数据访问对象 (DAO) 层代码。
+#### `maltose gen dao`
+
+**使用场景**: 在生成了 Model 之后，需要创建数据访问层代码时使用。为每个表提供标准的 CRUD 操作。
 
 - **用法**
 
@@ -103,11 +127,25 @@ maltose --version
   - 推荐先通过 `maltose gen model` 生成了对应的 Model 文件，因为 DAO 代码会依赖它们。
 
 - **Flags**:
+
   - `-d, --dst`: 指定生成文件的目标路径。默认为 `internal/dao`。
 
-### `maltose gen service`
+- **示例**:
 
-从 API 定义文件生成 Controller 和 Service 骨架代码。
+  ```bash
+  # 为所有表生成 DAO
+  maltose gen dao
+  ```
+
+- **最佳实践**:
+  - 先生成 Model，再生成 DAO，确保依赖关系正确。
+  - 自定义的数据库操作方法应该在 `internal/dao/` 目录下的文件中添加，而不是修改 `internal/dao/internal/` 下的文件。
+
+### 3. API 层生成
+
+#### `maltose gen service`
+
+**使用场景**: 当您已经定义了 API 接口（在 `api/` 目录下的 `*Req` 和 `*Res` 结构体），需要生成对应的 Controller 和 Service 骨架代码时使用。
 
 - **用法**
 
@@ -122,14 +160,39 @@ maltose --version
     - 对应的 Controller 文件及方法骨架（在 `internal/controller` 下）。
     - 对应的 Service 接口或结构体骨架文件（在 `internal/service` 下）。
 
+- **支持的路径格式**:
+
+  - `api/v1/hello.go` - 简单版本格式
+  - `api/hello/v1/hello.go` - 模块+版本格式
+  - `api/hello/hello.go` - 模块格式（默认版本为 v1）
+
 - **Flags**:
+
   - `-s, --src`: API 定义文件的源路径。默认为 `api`。
   - `-d, --dst`: 生成文件的目标路径。默认为 `internal`。
   - `-m, --mode`: 生成模式，`interface` (默认) 或 `struct`。`interface` 模式会生成 Service 接口，是推荐的最佳实践。
 
-### `maltose gen logic`
+- **示例**:
 
-从 Service 接口文件生成 Logic (业务逻辑) 层的实现骨架。
+  ```bash
+  # 扫描 api 目录，生成 Controller 和 Service 接口
+  maltose gen service
+
+  # 指定源路径和目标路径
+  maltose gen service -s ./api -d ./internal
+
+  # 生成 Service 结构体而非接口
+  maltose gen service -m struct
+  ```
+
+- **最佳实践**:
+  - 推荐使用 `interface` 模式，便于后续的依赖注入和单元测试。
+  - API 定义文件应该遵循 `*Req` 和 `*Res` 的命名约定。
+  - 生成的 Controller 和 Service 文件如果已存在，工具会智能地只添加新的方法，不会覆盖已有的实现。
+
+#### `maltose gen logic`
+
+**使用场景**: 在生成了 Service 接口之后，需要创建业务逻辑实现层时使用。确保业务逻辑层与接口定义保持同步。
 
 - **用法**
 
@@ -147,13 +210,30 @@ maltose --version
   - Service 文件中已定义了接口 (例如 `type IUser interface { ... }`)，通常由 `maltose gen service` 生成。
 
 - **Flags**:
+
   - `-s, --src`: Service 接口文件的源路径。默认为 `internal/service`。
   - `-d, --dst`: 生成文件的目标路径。默认为 `internal`。
   - `-o, --overwrite`: 如果 Logic 文件已存在，则强制覆盖它。默认为 `false` (追加新方法模式)。
 
-### `maltose gen openapi`
+- **示例**:
 
-根据 API 定义文件生成 OpenAPI v3 (Swagger) 规范文档。
+  ```bash
+  # 生成 Logic 层实现
+  maltose gen logic
+
+  # 强制覆盖已存在的 Logic 文件
+  maltose gen logic -o
+  ```
+
+- **最佳实践**:
+  - 通常在 Service 接口发生变化后执行此命令，确保 Logic 层实现与接口保持一致。
+  - 默认的追加模式比较安全，避免覆盖已有的业务逻辑实现。
+
+### 4. 文档生成
+
+#### `maltose gen openapi`
+
+**使用场景**: 当您需要生成 API 文档或为前端/客户端提供 OpenAPI 规范时使用。
 
 - **用法**
 
@@ -171,5 +251,80 @@ maltose --version
   - API 的请求结构体中已通过 struct tag 的方式定义了 OpenAPI 相关元信息。
 
 - **Flags**:
+
   - `-s, --src`: API 定义文件的源路径。默认为 `api`。
   - `-o, --output`: 生成的 OpenAPI 文件的输出路径。默认为 `openapi.yaml`。
+
+- **示例**:
+
+  ```bash
+  # 生成 OpenAPI 文档
+  maltose gen openapi
+
+  # 指定输出路径
+  maltose gen openapi -o ./docs/api.yaml
+  ```
+
+- **最佳实践**:
+  - 在 API 定义完成后，定期执行此命令更新文档。
+  - 可以结合 Swagger UI 等工具展示生成的文档。
+
+## 典型开发工作流
+
+以下是一个典型的 Maltose 项目开发流程：
+
+### 1. 新项目开始
+
+```bash
+# 创建新项目
+maltose new my-project
+cd my-project
+
+# 配置数据库连接（编辑 .env 文件）
+# 然后生成数据层代码
+maltose gen model
+maltose gen dao
+```
+
+### 2. API 开发
+
+```bash
+# 定义 API 结构体（在 api/ 目录下）
+# 然后生成服务层代码
+maltose gen service
+maltose gen logic
+```
+
+### 3. 文档生成
+
+```bash
+# 生成 API 文档
+maltose gen openapi
+```
+
+### 4. 迭代开发
+
+```bash
+# 当数据库表结构变化时
+maltose gen model
+maltose gen dao
+
+# 当 API 接口变化时
+maltose gen service
+maltose gen logic
+
+# 更新文档
+maltose gen openapi
+```
+
+## 注意事项
+
+1. **代码安全性**: 生成的代码会智能地处理已存在的文件，通常采用追加模式而非覆盖模式，保护您的手动修改。
+
+2. **命名约定**: 框架依赖特定的命名约定工作，如 `*Req`/`*Res` 结构体、`I*` 接口等，请遵循这些约定。
+
+3. **文件组织**: 生成的文件会按照 Maltose 推荐的目录结构组织，建议不要随意移动这些文件。
+
+4. **版本控制**: 建议将生成的代码纳入版本控制，便于团队协作和代码审查。
+
+通过合理使用这些命令行工具，您可以显著提高开发效率，将更多时间投入到业务逻辑的实现上。
