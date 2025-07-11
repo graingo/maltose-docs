@@ -1,10 +1,149 @@
 # 路由
 
-路由是 Web 应用的核心，它决定了如何将客户端请求映射到具体的处理逻辑。Maltose 提供了两种路由定义方式：**传统路由**和**控制器绑定**，满足不同场景的开发需求。
+在 Maltose 中，我们推荐使用**控制器绑定**的方式来定义路由。这种方式通过将 API 定义（结构体）、业务实现（控制器方法）和路由注册三者解耦并自动化关联，极大地提升了代码的结构性和可维护性。
 
-## 传统路由
+## 控制器绑定（推荐）
 
-传统路由通过直接注册处理函数的方式定义，适合简单的 API 或快速原型开发。
+控制器绑定是 Maltose 的核心特性，它通过反射自动将控制器方法绑定到路由，实现了**约定优于配置**的设计理念。
+
+### 开发流程示例：从 API 定义到路由生效
+
+将控制器绑定与 `maltose` 命令行工具结合使用，是最高效的开发方式。以下展示了从定义 API 到实现业务逻辑的完整流程：
+
+**第一步：在 `api` 目录定义请求与响应 (契约先行)**
+
+这是 API 的契约，是所有自动化的输入。
+
+```go
+// file: api/v1/user.go
+package v1
+
+import "github.com/graingo/maltose/frame/m"
+
+// GetUserProfileReq 获取用户资料请求
+type GetUserProfileReq struct {
+	m.Meta   `path:"/users/:id" method:"GET" tags:"用户管理" summary:"获取用户资料"`
+	UserID   int `path:"id" binding:"required" dc:"用户ID"`
+}
+
+// GetUserProfileRes 获取用户资料响应
+type GetUserProfileRes struct {
+	UserID   int    `json:"userId" dc:"用户ID"`
+	Username string `json:"username" dc:"用户名"`
+	Email    string `json:"email" dc:"邮箱地址"`
+}
+```
+
+**第二步：使用 `maltose gen service` 自动生成骨架**
+
+在项目根目录执行以下命令：
+
+```bash
+maltose gen service
+```
+
+该命令会扫描 `api` 目录，并根据 `user.go` 的定义，自动在 `internal` 目录下创建或更新对应的 `controller` 和 `service` 文件，包含所有方法的骨架。
+
+**第三步：在生成的控制器中填充业务逻辑**
+
+打开由上一步生成的 `internal/controller/user/user.go` 文件，并填充业务逻辑：
+
+```go
+// file: internal/controller/user/user.go
+package user
+
+import (
+	"context"
+	v1 "your-project/api/v1"
+	// ... import service
+)
+
+type Controller struct{}
+
+// GetProfile 实现了获取用户资料的逻辑
+func (c *Controller) GetProfile(ctx context.Context, req *v1.GetUserProfileReq) (*v1.GetUserProfileRes, error) {
+	// ... 调用 service 层等业务逻辑 ...
+	return &v1.GetUserProfileRes{
+		UserID:   req.UserID,
+		Username: "maltose",
+		Email:    "maltose@example.com",
+	}, nil
+}
+```
+
+### 核心机制详解
+
+#### 1. API 结构体：定义契约
+
+API 结构体是所有绑定的基础，它通过代码定义了 API 的一切。
+
+- **`*Req` 结构体**:
+
+  - **`m.Meta` 内嵌**: 通过嵌入匿名字段 `m.Meta`，并为其添加 `path`, `method`, `summary`, `tags` 等标签来定义路由的核心元数据。这是路由注册和 OpenAPI 文档生成的依据。
+  - **字段标签**: 通过 `path`, `form`, `json`, `header` 等标签声明了参数的来源。
+  - **`binding` 标签**: 定义了参数的验证规则。
+  - **`dc` 标签**: 为参数提供文档描述。
+
+- **`*Res` 结构体**:
+  - 定义了成功响应的数据结构，其字段上的 `json` 和 `dc` 标签同样用于序列化和文档生成。
+
+:::tip 自动化 API 文档
+您在 `mmeta.Meta` 和结构体字段标签中提供的所有元数据，都会被 `maltose gen openapi` 命令自动捕获。该工具能够深度解析**嵌套结构体**，让您轻松地从一份代码生成一份内容详尽、结构准确的 API 文档。
+:::
+
+#### 2. 核心标签详解
+
+为了实现自动化功能，Maltose 依赖于在结构体字段上使用的一系列标签。理解这些标签是高效开发的关键。它们主要分为两类：
+
+**路由元信息标签 (作用于 `m.Meta` 结构体)**
+
+这些标签定义了 API 端点的核心路由信息。
+
+| 标签               | 说明                                                                                                                             | 示例                       |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `path:"<path>"`    | 定义 API 的 URL 路径，支持路径参数（如 `:id`）。                                                                                 | `path:"/users/:id"`        |
+| `group:"<prefix>"` | 定义路由分组前缀。`openapi` 生成器会将其加在 `path` 前。**默认使用文件路径作为前缀**。如果想从根路径开始，请设置为 `group:"/"`。 | `group:"/admin"`           |
+| `method:"<verb>"`  | 定义 HTTP 请求方法，如 `GET`, `POST`, `PUT` 等。                                                                                 | `method:"GET"`             |
+| `summary:"<text>"` | 提供一个简短的 API 功能摘要。                                                                                                    | `summary:"获取用户资料"`   |
+| `tags:"<t1,t2>"`   | 为 API 打上标签，用于在文档中分组。多个标签用逗号分隔。                                                                          | `tags:"用户管理,后台接口"` |
+
+**参数绑定与验证标签 (作用于请求结构体的普通字段)**
+
+这些标签定义了如何从 HTTP 请求中提取数据并进行验证。
+
+| 标签                | 说明                                                                                       | 示例                                          |
+| ------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `form:"<name>"`     | 将字段绑定到 URL 查询参数或表单 (`x-www-form-urlencoded`) 中的同名键。                     | `Page int \`form:"page"\``                    |
+| `json:"<name>"`     | 将字段绑定到 JSON 请求体中的同名键。在响应结构体中，它定义了该字段序列化为 JSON 时的键名。 | `Username string \`json:"username"\``         |
+| `header:"<name>"`   | 将字段绑定到 HTTP 请求头中的同名键。                                                       | `AuthToken string \`header:"Authorization"\`` |
+| `binding:"<rules>"` | 定义字段的验证规则，由 `go-playground/validator` 库提供支持。多个规则用逗号 `,` 分隔。     | `Email string \`binding:"required,email"\``   |
+
+**通用文档标签 (`dc`)**
+
+`dc` (Description Comment) 标签是一个通用标签，可以用于 `m.Meta` 和任何普通字段，为它们提供详细的描述信息。这些信息是 `maltose gen openapi` 生成 API 文档时 `description` 字段的主要来源。
+
+```go
+type CreateUserReq struct {
+	m.Meta `path:"/users" method:"POST" dc:"这个接口用于创建新用户，信息需要完整。"`
+	Name   string `json:"name" binding:"required" dc:"用户名，长度必须在3到20之间"`
+}
+```
+
+#### 3. 自动参数绑定与验证
+
+当一个请求到达时，对于绑定了控制器的路由，框架会自动执行以下操作：
+
+1.  **实例化请求结构体**：为您创建一个 `*SomeReq` 的实例。
+2.  **绑定数据**：根据您在结构体字段上定义的 `path`, `form`, `json`, `header` 标签，从请求的各个部分（URL 路径、查询参数、请求体、请求头）提取数据，并填充到 `req` 实例中。
+3.  **验证参数**：使用 `binding` 标签中定义的规则对填充后的数据进行验证。
+    - **验证成功**：调用控制器中对应的业务方法。
+    - **验证失败**：中断请求，并自动返回一个包含详细错误信息的 `400 Bad Request` 响应。
+
+通过这种自动化的机制，您的控制器方法可以完全专注于业务逻辑，无需编写任何解析和校验参数的模板代码。
+
+## 传统路由（备选方案）
+
+对于一些非常简单的 API、内部调试接口或不需要严格契约定义的场景，您依然可以使用传统的路由方式。
 
 ### 基础路由
 
@@ -14,25 +153,13 @@
 s := mhttp.New()
 
 // GET 请求
-s.GET("/users", func(r *mhttp.Request) {
-    r.JSON(200, gin.H{"message": "获取用户列表"})
+s.GET("/ping", func(r *mhttp.Request) {
+    r.JSON(200, gin.H{"message": "pong"})
 })
 
 // POST 请求
-s.POST("/users", func(r *mhttp.Request) {
-    r.JSON(201, gin.H{"message": "创建用户成功"})
-})
-
-// PUT 请求
-s.PUT("/users/:id", func(r *mhttp.Request) {
-    id := r.Param("id")
-    r.JSON(200, gin.H{"message": "更新用户", "id": id})
-})
-
-// DELETE 请求
-s.DELETE("/users/:id", func(r *mhttp.Request) {
-    id := r.Param("id")
-    r.JSON(200, gin.H{"message": "删除用户", "id": id})
+s.POST("/status", func(r *mhttp.Request) {
+    r.JSON(201, gin.H{"status": "ok"})
 })
 ```
 
@@ -41,20 +168,13 @@ s.DELETE("/users/:id", func(r *mhttp.Request) {
 支持路径参数和通配符：
 
 ```go
-// 路径参数
+// 路径参数: /users/123
 s.GET("/users/:id", func(r *mhttp.Request) {
     userID := r.Param("id")
     r.JSON(200, gin.H{"userID": userID})
 })
 
-// 多个参数
-s.GET("/users/:id/posts/:postId", func(r *mhttp.Request) {
-    userID := r.Param("id")
-    postID := r.Param("postId")
-    r.JSON(200, gin.H{"userID": userID, "postID": postID})
-})
-
-// 通配符参数
+// 通配符参数: /files/path/to/my/file.txt
 s.GET("/files/*filepath", func(r *mhttp.Request) {
     filepath := r.Param("filepath")
     r.JSON(200, gin.H{"filepath": filepath})
@@ -73,225 +193,11 @@ v1 := s.Group("/api/v1")
     v1.POST("/users", createUserV1)
 }
 
-// API v2 分组
-v2 := s.Group("/api/v2")
-{
-    v2.GET("/users", getUsersV2)
-    v2.POST("/users", createUserV2)
-}
-
 // 需要认证的分组
-authGroup := s.Group("/auth")
-authGroup.Use(AuthMiddleware()) // 添加认证中间件
+authGroup := s.Group("/admin")
+authGroup.Use(AuthMiddleware()) // 为该组下所有路由添加认证中间件
 {
-    authGroup.GET("/profile", getProfile)
-    authGroup.PUT("/profile", updateProfile)
+    authGroup.GET("/dashboard", getDashboard)
+    auth.POST("/settings", updateSettings)
 }
 ```
-
-## 控制器绑定（推荐）
-
-控制器绑定是 Maltose 的核心特性，它通过反射自动将控制器方法绑定到路由，实现了**约定优于配置**的设计理念。
-
-### 控制器定义
-
-首先定义请求和响应结构体：
-
-```go
-// internal/model/v1/user.go
-package v1
-
-import "github.com/graingo/maltose/net/mhttp/mmeta"
-
-// GetUserProfileReq 获取用户资料请求
-type GetUserProfileReq struct {
-    UserID int `path:"id" binding:"required" dc:"用户ID"`
-}
-
-// GetUserProfileRes 获取用户资料响应
-type GetUserProfileRes struct {
-    UserID   int    `json:"userId" dc:"用户ID"`
-    Username string `json:"username" dc:"用户名"`
-    Email    string `json:"email" dc:"邮箱地址"`
-    Avatar   string `json:"avatar" dc:"头像URL"`
-}
-
-// 路由元数据：定义 HTTP 方法、路径等信息
-func (req *GetUserProfileReq) Meta() mmeta.Meta {
-    return mmeta.Meta{
-        Path:    "/users/:id",
-        Method:  "GET",
-        Tags:    []string{"用户管理"},
-        Summary: "获取用户资料",
-    }
-}
-```
-
-然后定义控制器：
-
-```go
-// internal/controller/user/user.go
-package user
-
-import (
-    "context"
-    v1 "your-project/internal/model/v1"
-)
-
-type Controller struct{}
-
-// GetProfile 获取用户资料
-func (c *Controller) GetProfile(ctx context.Context, req *v1.GetUserProfileReq) (*v1.GetUserProfileRes, error) {
-    // 业务逻辑处理
-    user, err := service.User().GetByID(ctx, req.UserID)
-    if err != nil {
-        return nil, err
-    }
-
-    return &v1.GetUserProfileRes{
-        UserID:   user.ID,
-        Username: user.Username,
-        Email:    user.Email,
-        Avatar:   user.Avatar,
-    }, nil
-}
-```
-
-### 绑定控制器
-
-最后在路由注册中绑定控制器：
-
-```go
-// internal/router/router.go
-package router
-
-import (
-    "github.com/graingo/maltose/net/mhttp"
-    "your-project/internal/controller/user"
-)
-
-func Register(s *mhttp.Server) {
-    // 将 user.Controller 的所有方法绑定到服务器
-    s.BindObject(&user.Controller{})
-}
-```
-
-完成以上步骤后，Maltose 会自动创建 `GET /users/:id` 路由，并将其指向 `user.Controller` 的 `GetProfile` 方法。这种方式不仅代码更清晰，而且 API 的定义、实现和路由完全自动化，极大地提升了开发效率。
-
-## 请求处理与验证
-
-在 Maltose 中，路由处理器的核心任务之一就是处理来自客户端的请求。`mhttp` 在这方面提供了强大的自动化工具，尤其是参数绑定和验证。
-
-### 自动参数绑定
-
-当您定义一个控制器方法时，例如 `func(ctx context.Context, req *v1.SomeReq) (*v1.SomeRes, error)`，框架会自动执行以下操作：
-
-1.  **实例化请求结构体**：为您创建一个 `*v1.SomeReq` 的实例
-2.  **绑定数据**：根据请求的 `Content-Type` 和 HTTP 方法，自动从请求的 **URL 查询参数**、**表单数据** 或 **JSON 请求体** 中提取数据，并填充到 `req` 实例的字段中
-
-这依赖于您在结构体字段上使用的标签：
-
-```go
-type CreateUserReq struct {
-    Username string `json:"username" binding:"required,min=3,max=20" dc:"用户名"`
-    Email    string `json:"email" binding:"required,email" dc:"邮箱地址"`
-    Password string `json:"password" binding:"required,min=6" dc:"密码"`
-    Age      int    `json:"age" binding:"min=1,max=120" dc:"年龄"`
-}
-```
-
-### 自动参数验证
-
-Maltose 内置了强大的 `go-playground/validator` 验证器。您只需在请求结构体的字段上添加 `binding` 标签，框架就会在绑定数据后自动进行验证。
-
-常用的验证规则：
-
-| 规则       | 说明        | 示例                               |
-| ---------- | ----------- | ---------------------------------- |
-| `required` | 必填字段    | `binding:"required"`               |
-| `min=n`    | 最小值/长度 | `binding:"min=3"`                  |
-| `max=n`    | 最大值/长度 | `binding:"max=20"`                 |
-| `email`    | 邮箱格式    | `binding:"email"`                  |
-| `url`      | URL 格式    | `binding:"url"`                    |
-| `oneof`    | 枚举值      | `binding:"oneof=admin user guest"` |
-
-如果验证失败，框架会：
-
-1.  **终止请求处理**：不会执行业务逻辑
-2.  **返回详细错误**：包含具体的字段名和错误原因
-3.  **支持国际化**：错误消息支持多语言
-
-### 路径参数绑定
-
-对于路径中的参数，使用 `path` 标签：
-
-```go
-type GetUserReq struct {
-    UserID int `path:"id" binding:"required,min=1" dc:"用户ID"`
-}
-
-// 对应路由：GET /users/:id
-func (req *GetUserReq) Meta() mmeta.Meta {
-    return mmeta.Meta{
-        Path:   "/users/:id",
-        Method: "GET",
-    }
-}
-```
-
-### 查询参数绑定
-
-对于 URL 查询参数，使用 `form` 标签：
-
-```go
-type ListUsersReq struct {
-    Page     int    `form:"page" binding:"min=1" dc:"页码"`
-    PageSize int    `form:"page_size" binding:"min=1,max=100" dc:"每页数量"`
-    Keyword  string `form:"keyword" dc:"搜索关键词"`
-}
-
-// 对应请求：GET /users?page=1&page_size=20&keyword=alice
-```
-
-### 混合参数绑定
-
-一个请求结构体可以同时包含路径参数、查询参数和请求体：
-
-```go
-type UpdateUserReq struct {
-    // 路径参数
-    UserID int `path:"id" binding:"required,min=1" dc:"用户ID"`
-
-    // 查询参数
-    Force bool `form:"force" dc:"是否强制更新"`
-
-    // 请求体
-    Username string `json:"username" binding:"required,min=3" dc:"用户名"`
-    Email    string `json:"email" binding:"required,email" dc:"邮箱"`
-}
-```
-
-### 错误处理示例
-
-当验证失败时，客户端会收到详细的错误信息：
-
-```json
-{
-  "code": 40000,
-  "message": "参数验证失败",
-  "data": {
-    "errors": [
-      {
-        "field": "username",
-        "message": "用户名长度必须至少为3个字符"
-      },
-      {
-        "field": "email",
-        "message": "邮箱格式不正确"
-      }
-    ]
-  }
-}
-```
-
-通过这种自动化的参数绑定和验证机制，您可以专注于业务逻辑的实现，而不需要编写重复的参数解析和验证代码。

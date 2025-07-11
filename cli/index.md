@@ -233,7 +233,7 @@ Maltose CLI 工具的设计遵循了典型的 Web 应用开发流程。以下是
 
 #### `maltose gen openapi`
 
-**使用场景**: 当您需要生成 API 文档或为前端/客户端提供 OpenAPI 规范时使用。
+**使用场景**: 当您在代码中完成了 API 定义，需要为前端、客户端或 API 网关生成一份标准的 OpenAPI 规范（v3）时使用。
 
 - **用法**
 
@@ -243,31 +243,39 @@ Maltose CLI 工具的设计遵循了典型的 Web 应用开发流程。以下是
 
 - **功能**:
 
-  - 解析 `api` 目录下的 Go 文件，特别是请求结构体中包含 `m.Meta` 元信息的定义。
-  - 根据解析到的路由、方法、标签、摘要等信息，生成一个完整的 `openapi.yaml` 文件，可用于 API 文档展示和客户端生成。
+  - 扫描 `api` 目录下的 Go 文件，解析请求结构体中的 `mmeta.Meta` 元信息（路径、方法、标签等）。
+  - **深度解析结构体**：能够递归地解析请求和响应结构体，包括**嵌套结构体**、**指针**和**切片**类型。
+  - **自动生成组件定义**：为所有解析到的自定义类型（如 `Image`, `File`）在 `components/schemas` 中创建完整的 schema 定义，并通过 `$ref` 在 API 操作中引用它们。
+  - **支持多种输出格式**：可以生成 `yaml` 或 `json` 格式的规范文件。
 
 - **前置条件**:
 
-  - API 的请求结构体中已通过 struct tag 的方式定义了 OpenAPI 相关元信息。
+  - `api` 目录下的请求结构体（如 `*Req`）需要实现 `Meta() mmeta.Meta` 方法，并提供路由、方法等信息。
+  - 结构体字段建议使用 `json`, `path`, `form`, `dc` (description) 等标签来提供详尽的元数据。
 
 - **Flags**:
 
   - `-s, --src`: API 定义文件的源路径。默认为 `api`。
-  - `-o, --output`: 生成的 OpenAPI 文件的输出路径。默认为 `openapi.yaml`。
+  - `-o, --output`: 指定输出文件的路径。默认为 `openapi.yaml`。
+  - `-f, --format`: 指定输出格式，可选值为 `yaml` 或 `json`。
+    - **智能推断**：如果此标志未被设置，工具会根据 `--output` 文件名的后缀（`.yaml`, `.yml` 或 `.json`）自动推断格式。
 
 - **示例**:
 
   ```bash
-  # 生成 OpenAPI 文档
+  # 生成默认的 openapi.yaml
   maltose gen openapi
 
-  # 指定输出路径
-  maltose gen openapi -o ./docs/api.yaml
+  # 生成名为 api.json 的 JSON 格式规范
+  maltose gen openapi -o api.json
+
+  # 显式指定格式
+  maltose gen openapi -o api.spec -f yaml
   ```
 
 - **最佳实践**:
-  - 在 API 定义完成后，定期执行此命令更新文档。
-  - 可以结合 Swagger UI 等工具展示生成的文档。
+  - 在请求和响应的 `struct` 字段上尽可能详细地使用 `dc:"..."` 标签，它将被转换为 `description` 字段，极大地提高 API 文档的可读性。
+  - 复杂的数据结构（如分页列表）应定义为独立的、可重用的结构体，`gen openapi` 会自动将其提取到 `components/schemas` 中，使 API 规范更清晰。
 
 ## 典型开发工作流
 
