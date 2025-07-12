@@ -39,11 +39,11 @@ export default defineConfig({
               link: "/components/server/",
               items: [
                 { text: "路由", link: "/components/server/routing" },
+                { text: "中间件", link: "/components/server/middleware" },
                 {
                   text: "标准响应",
                   link: "/components/server/standard-response",
                 },
-                { text: "中间件", link: "/components/server/middleware" },
               ],
             },
             { text: "HTTP 客户端", link: "/components/http-client" },
