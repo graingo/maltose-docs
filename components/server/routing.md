@@ -15,7 +15,7 @@
 这是 API 的契约，是所有自动化的输入。
 
 ```go
-// file: api/v1/user.go
+// file: api/user/v1/user.go
 package v1
 
 import "github.com/graingo/maltose/frame/m"
@@ -46,10 +46,10 @@ maltose gen service
 
 **第三步：在生成的控制器中填充业务逻辑**
 
-打开由上一步生成的 `internal/controller/user/user.go` 文件，并填充业务逻辑：
+打开由上一步生成的 `internal/controller/user/user_v1.go` 文件，并填充业务逻辑：
 
 ```go
-// file: internal/controller/user/user.go
+// file: internal/controller/user/user_v1.go
 package user
 
 import (
