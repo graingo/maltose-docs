@@ -59,7 +59,6 @@ m.Log().Infof(ctx, "Redis host: %s", redisHost.String())
 m.Log().Info(ctx, "用户登录成功")
 
 // 获取名为 "access" 的 logger
-// (需要在启动时通过 mins.Log().SetLogger() 设置)
 m.Log("access").Info(ctx, "访问日志")
 ```
 
