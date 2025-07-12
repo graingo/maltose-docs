@@ -32,6 +32,14 @@
 
 存放 API 的定义文件（`.go` 格式）。这里的"定义"主要指请求和响应的 `struct`，是项目的对外契约。
 
+:::tip 支持的路径格式
+`maltose gen service` 命令能够智能地解析 `api` 目录下的文件路径，以确定生成的 Controller 和 Service 的模块名和版本。支持以下格式：
+
+- **模块化版本 (推荐)**: `api/<module>/<version>/<file>.go` (例如: `api/user/v1/user.go`)
+- **纯版本**: `api/<version>/<file>.go` (例如: `api/v1/user.go`)
+- **模块化**: `api/<module>/<file>.go` (例如: `api/user/user.go`) - 此时版本将默认为 `v1`。
+  :::
+
 ## `/cmd`
 
 项目的启动入口层。负责应用的启动、依赖注入、路由注册等核心初始化工作。

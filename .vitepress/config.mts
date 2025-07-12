@@ -78,18 +78,22 @@ export default defineConfig({
         {
           text: "进阶",
           items: [
-            { text: "测试", link: "/advanced/testing" },
-            { text: "错误处理", link: "/advanced/error-handling" },
-            { text: "部署", link: "/advanced/deployment" },
-            { text: "跨边界链路追踪", link: "/advanced/messaging-tracing" },
+            { text: "进阶总览", link: "/advanced/" },
             { text: "完整配置参考", link: "/advanced/full-configuration" },
+            { text: "测试指南", link: "/advanced/testing" },
+            { text: "错误处理", link: "/advanced/error-handling" },
+            { text: "部署指南", link: "/advanced/deployment" },
+            { text: "跨边界链路追踪", link: "/advanced/messaging-tracing" },
           ],
         },
       ],
       "/cli/": [
         {
           text: "命令行工具",
-          items: [{ text: "CLI 总览", link: "/cli/" }],
+          items: [
+            { text: "CLI 总览", link: "/cli/" },
+            { text: "命令参考", link: "/cli/commands" },
+          ],
         },
       ],
       "/faq/": [

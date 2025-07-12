@@ -40,7 +40,7 @@ COPY . .
 # - CGO_ENABLED=0: 禁用 CGO，以便静态链接，生成一个不依赖 C 库的纯 Go 二进制文件
 # - -ldflags "-s -w": 移除调试信息，减小二进制文件体积
 # - -o /app/server: 指定输出的二进制文件名为 server
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server ./cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server .
 
 # --- 运行阶段 ---
 # 使用一个极简的基础镜像，例如 scratch 或 alpine

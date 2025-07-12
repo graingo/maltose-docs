@@ -47,7 +47,7 @@ go run .
 当您在终端看到类似以下的输出时，说明您的服务已经成功启动：
 
 ```text
-[GIN-debug] Listening and serving HTTP on :8080
+Listening and serving HTTP on :8080
 ```
 
 ## 4. 发送请求
@@ -74,7 +74,12 @@ curl http://127.0.0.1:8080/hello
 
 ## 下一步
 
-现在您已经有了一个可以运行的项目，我们建议您继续学习：
+从 "Hello, World" 到一个真正的 API 服务，您只需要两步：
+
+1.  **定义 API**: 在 `api/v1/` 目录下创建一个 `user.go` 文件，定义获取用户信息的请求和响应结构体。
+2.  **生成代码**: 在项目根目录运行 `maltose gen service`，Maltose 会自动为您创建对应的 Controller 和 Service 文件骨架。
+
+这个 **“定义 -> 生成”** 的工作流是 Maltose 的核心。现在，我们建议您继续深入学习：
 
 - [**核心概念**](./core-concepts.md): 了解 Maltose 框架背后的设计思想。
 - [**项目结构**](./directory-structure.md): 熟悉官方推荐的项目目录是如何组织的。

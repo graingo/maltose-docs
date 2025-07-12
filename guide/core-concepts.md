@@ -55,7 +55,7 @@ Maltose 认为，开发者应当专注于创造性的业务逻辑，而不是编
 - `gen service`: 从 API 定义生成 Controller 和 Service 骨架。
 - `gen logic`: 从 Service 接口生成业务逻辑骨架。
 
-这些工具不仅能提高开发效率，还能确保项目中的模板代码遵循统一的规范和最佳实践。
+这些工具不仅能提高开发效率，还能确保项目中的模板代码遵循统一的规范和最佳实践。这种**“契约先行、生成优先”**的工作流正是 Maltose 框架所推崇的核心开发模式。
 
 ## 5. 应用生命周期 (Application Lifecycle)
 
@@ -63,7 +63,7 @@ Maltose 提供了一个优雅且强大的应用生命周期管理器 `m.App`，�
 
 ### 核心用法
 
-管理一个应用的完整生命周期非常简单，只需将所有需要独立运行的服务（如 HTTP 服务器）和需要在应用退出时执行的清理函数（关停钩子）注册到 `App` 实例中，然后调用 `Run()` 方法即可。
+管理一个应用的完整生命周期非常简单。您只需将所有需要独立运行的服务（如 HTTP 服务器）和应用退出时需要执行的清理函数（即“关停钩子”）注册到 `m.App` 实例中，然后调用其 `Run()` 方法即可。
 
 ```go
 // in main.go
@@ -72,37 +72,39 @@ package main
 import (
 	"context"
 	"fmt"
-	"your_project/internal/router" // 替换为你的项目路径
-	"github.com/a-t-com/fino/maltose/frame/m"
-	"github.com/a-t-com/fino/maltose/net/mhttp"
-	"github.com/a-t-com/fino/maltose/os/mcfg"
-	"github.com/a-t-com/fino/maltose/os/mlog"
+	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/net/mhttp"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 func main() {
-	// 创建 HTTP 服务器
-	s := mhttp.NewServer()
-	s.SetAddr(":8080")
+	// 1. 创建一个 HTTP 服务器实例
+	s := mhttp.New()
+	s.SetAddress(":8080")
+	s.GET("/", func(r *mhttp.Request) {
+		r.Response.Write("Hello, Maltose App!")
+	})
 
-	// 初始化 Tracer Provider
-	shutdown, err := provider.InitTracerProvider()
-	if err != nil {
-		mlog.Fatalf(context.Background(), "failed to init tracer provider: %v", err)
+	// 2. 创建一个模拟的清理任务
+	myCleanupTask := func(ctx context.Context) error {
+		fmt.Println("执行自定义的清理任务...")
+		// 例如：关闭数据库连接、同步缓存等
+		fmt.Println("清理任务完成.")
+		return nil
 	}
 
-	// 使用 m.App 管理生命周期
-	err = m.NewApp(
-		// 注册需要独立运行的服务
+	// 3. 使用 m.App 统一管理生命周期
+	app := m.NewApp(
+		// 注册需要独立运行的服务 (必须实现 m.AppServer 接口)
 		m.WithServer(s),
-		// 注册应用退出时的清理钩子
-		m.WithShutdownHook(func(ctx context.Context) error {
-			fmt.Println("Closing tracer provider...")
-			return shutdown(ctx)
-		}),
-	).Run()
+		// 注册一个或多个应用退出时的清理钩子
+		m.WithShutdownHook(myCleanupTask),
+	)
 
-	if err != nil {
-		mlog.Errorf(context.Background(), "app run failed: %v", err)
+	// 4. 启动应用
+	// Run() 方法会阻塞，并监听操作系统的退出信号 (SIGINT, SIGTERM)
+	if err := app.Run(); err != nil {
+		mlog.Errorf(context.Background(), "应用启动失败: %v", err)
 	}
 }
 ```

@@ -15,7 +15,7 @@
 
 假设我们有如下的用户注册逻辑：
 
-```go
+````go
 // file: internal/logic/user/user.go
 package user
 
@@ -43,9 +43,10 @@ func (s *sUser) Register(ctx context.Context, req *v1.UserRegisterReq) (*v1.User
 
     return &v1.UserRegisterRes{UserID: 1}, nil
 }
-```
 
-要测试 `Register` 方法，我们不希望它真的去连接数据库。我们可以使用 [gomock](https://github.com/golang/mock) 来模拟 DAO 层的行为。
+要测试 `Register` 方法，我们不希望它真的去连接数据库。由于 Maltose 提倡面向接口编程，我们可以利用 mock 技术（如 [gomock](https://github.com/golang/mock)）来模拟 DAO 层的行为。
+
+为了实现这一点，DAO 层需要被设计为可替换的。一个常见的实践是导出一个包级别的变量（例如 `dao.User`），并在测试代码中用 mock 实例覆盖它。如下面的测试代码所示，我们通过 `dao.User = mockUserDao` 实现了依赖注入，这使得我们可以在不触及真实数据库的情况下，精确地测试业务逻辑在不同情况下的行为。
 
 #### 1. (准备工作) 定义接口和生成 Mock
 
@@ -99,7 +100,7 @@ func TestUser_Register(t *testing.T) {
     assert.Nil(t, err) // 断言不应该有错误
     assert.Equal(t, uint(1), res.UserID) // 断言返回的用户 ID 正确
 }
-```
+````
 
 通过这种方式，我们可以在不触及真实数据库的情况下，精确地测试业务逻辑在不同情况下的行为。
 
