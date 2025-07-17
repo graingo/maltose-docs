@@ -11,7 +11,7 @@
 # ----------------------------------------------------------------
 server:
   # 服务名称，会用于 OpenTelemetry 的 service.name
-  name: "maltose-app"
+  server_name: "maltose-app"
   # 服务器监听地址和端口
   address: ":8080"
   # 读取请求头的最长时间
@@ -39,6 +39,8 @@ server:
 # 日志组件相关配置
 # ----------------------------------------------------------------
 log:
+  # 服务名称
+  service_name: "maltose"
   # 日志级别: debug, info, warn, error, fatal, panic
   level: "info"
   # 是否同时将日志输出到标准输出 (控制台)
