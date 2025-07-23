@@ -2,6 +2,48 @@
 
 一个良好、一致的项目结构是软件工程的最佳实践之一。Maltose 通过 `maltose new` 命令为用户提供了一套经过精心设计的、推荐的项目结构，旨在实现关注点分离，提高项目的可维护性和可扩展性。
 
+### 命名规范
+
+在 Maltose 中，我们推荐遵循一套能最大化利用代码生成优势的命名规范。这能极大地提升项目的可读性和可维护性。
+
+#### 快速概览：一个完整的例子
+
+我们以一个名为 `user-center` 的用户中心模块为例，看它在 Maltose 的工作流中如何演变：
+
+| 阶段                | 示例                              | 规范 (Case) | 说明                                                    |
+| :------------------ | :-------------------------------- | :---------- | :------------------------------------------------------ |
+| **1. API 设计**     | `api/user-center/v1/`             | Kebab-case  | **目录名**：使用连字符，对 URL 和 DevOps 生态友好。     |
+| **2. Service 生成** | `internal/service/user_center.go` | Snake-case  | **文件名**：自动转换为下划线，符合 Go 社区习惯。        |
+| **3. Logic 生成**   | `internal/logic/usercenter/`      | lowerCase   | **逻辑层包/目录**：自动转换为小写单词，符合 Go 包规范。 |
+| **4. Go 代码内部**  | `type sUserCenter struct {}`      | CamelCase   | **类型名**：自动转换为驼峰式，符合 Go 语法要求。        |
+
+遵循这套规范，您可以在享受目录命名便利性的同时，产出完全符合 Go 社区规范的内部代码。
+
+---
+
+#### 核心原则详解
+
+1.  **目录名 (Modules): 使用连字符 (kebab-case)**
+
+    - 这是 Web 和云原生生态的事实标准。Maltose 的生成工具会为您处理好后续的转换。
+    - _示例_: `api/user-center/`, `api/order-management/`
+
+2.  **Go 文件名 (Filenames): 使用下划线 (snake_case)**
+
+    - 这是 Go 社区的编码风格共识，可读性好。
+    - _示例_: `user_center.go`, `order_management.go`
+
+3.  **Go 包名 (Packages): 使用小写单个单词**
+
+    - 这是 Go 语言的官方约定。对于需要复合词的复杂包名，最佳实践是**直接将小写单词连接起来**（如 `package httpclient`），并**绝对避免**使用下划线或驼峰式作为包名。
+    - _示例_: `package service`, `package usercenter`
+
+4.  **Go 类型名 (Types): 使用驼峰式 (CamelCase)**
+    - 这是 Go 语言的强制语法要求，用于区分导出和非导出成员。
+    - _示例_: `type sUserCenter struct {}`, `type cOrderManagement struct {}`
+
+### 项目结构
+
 当您执行 `maltose new <project-name>` 后，会得到如下的目录结构：
 
 ```
