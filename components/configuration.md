@@ -4,7 +4,7 @@
 
 ## 特性
 
-- **多格式支持**: 默认支持 `yaml`、`json`、`toml`、`ini` 等多种常见配置文件格式。
+- **多格式支持**: 默认支持 `yaml`、`json`、`toml` 常见配置文件格式。
 - **适配器模式**: 通过 `Adapter` 接口，可以轻松扩展支持其他配置源，如环境变量、远程配置中心（Nacos, Apollo）等。
 - **实例管理**: 支持通过不同的名称获取不同的配置实例，方便管理多个配置文件。
 - **自动加载**: 默认会自动在 `config` 目录下查找并加载名为 `config.yaml`（或实例名对应的文件）的配置文件。
@@ -102,7 +102,6 @@ type Adapter interface {
 	Get(ctx context.Context, pattern string) (any, error)
 	Data(ctx context.Context) (map[string]any, error)
     Available(ctx context.Context, resource ...string) bool
-    MergeConfigMap(ctx context.Context, data map[string]any) error
 }
 ```
 

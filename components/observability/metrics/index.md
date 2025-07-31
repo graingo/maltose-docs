@@ -1,13 +1,30 @@
 # 指标监控
 
-`mmetric` 是 Maltose 框架提供的指标监控组件，它基于 OpenTelemetry 标准，提供了一套统一的指标采集接口，旨在与框架的其他部分深度集成，并能轻松对接各种主流的监控后端系统。
+`mmetric` 是 Maltose 框架提供的指标监控组件。它基于 OpenTelemetry 标准，旨在与框架的其他部分深度集成，并能轻松对接各种主流的监控后端系统。
+
+## 设计思路
+
+Maltose 的指标功能被设计为一个**健壮的抽象层 (`mmetric`)**，也称为**门面模式（Facade Pattern）**。它通过定义一套稳定的内部接口，将 OpenTelemetry 的具体实现细节完全隐藏起来，从而**隔离**了多样化且易变的监控后端生态。
+
+我们推荐您在阅读本章节前，先了解其背后的设计思想。
+
+[<card heading="深入了解 `mmetric` 的设计思路" icon="i-heroicons-light-bulb" color="indigo" to="./design.md" />](./design.md)
 
 ## 核心优势
 
-- **统一接口**: 提供了 `Counter`（计数器）、`UpDownCounter`（升降计数器）和 `Histogram`（直方图）等标准化的指标类型接口。
-- **提供者模式 (Provider)**: 采用提供者模式，使得底层实现可以被替换。Maltose 提供了 `otelmetric` 包，支持通过 gRPC 或 HTTP 协议将指标导出到 OpenTelemetry Collector。
-- **自动化采集**: 框架核心组件（如 `mhttp`）会自动采集关键指标，如请求总数、活跃请求数、请求耗时等，无需手动埋点。
-- **维度标签 (Attributes)**: 所有的指标采集都支持附带多维度的标签，方便在监控系统中进行聚合和筛选。
+- **统一抽象接口**: 提供了 `Counter`、`UpDownCounter` 和 `Histogram` 等标准化的指标类型接口，将业务代码与底层实现解耦。
+- **可插拔后端**: 采用提供者模式，使得底层实现可以被替换。Maltose 提供了 `otlpmetric` 包，支持通过 gRPC 或 HTTP 协议将指标导出到 OpenTelemetry Collector。
+- **自动化采集**: 框架核心组件（如 `mhttp`、`mclient`）会自动采集关键指标，如请求总数、活跃请求数、请求耗时等，无需手动埋点。
+- **多维度标签 (Attributes)**: 所有的指标采集都支持附带多维度的标签，方便在监控系统中进行聚合和筛选。
+
+## 自动化采集支持
+
+Maltose 框架为以下组件提供了开箱即用的自动指标采集支持：
+
+| 组件            | 自动指标采集 |
+| :-------------- | :----------- |
+| **HTTP Server** | ✅           |
+| **HTTP Client** | ✅           |
 
 ## 指标类型
 
@@ -15,15 +32,9 @@
 - **UpDownCounter (升降计数器)**: 一个可以增加也可以减少的值，用于统计当前活跃的请求数、队列中的任务数等。
 - **Histogram (直方图)**: 用于统计数据的分布情况，例如请求耗时的分布（P95, P99 等）。
 
-:::tip 直方图桶 (Histogram Buckets) 的配置变更
-根据 OpenTelemetry SDK v1.34.0 及以上版本的规范，**直方图的桶（Buckets）不再通过客户端代码进行配置**。
-
-过去，开发者可能会在创建 Histogram 时指定 `Buckets` 选项。现在，桶的划分和聚合完全由后端的 **OpenTelemetry Collector** 或监控系统（如 Prometheus）来定义和管理。
-
-这种变更简化了客户端的配置，并将数据聚合的复杂性移到了后端，提供了更大的灵活性。您只需在应用中记录原始值，然后在 Collector 的配置中定义您想要的延迟桶。
-:::
-
 ## 快速开始
+
+Maltose 提供了一个 `otlpmetric` 包，用于快速初始化和配置 OpenTelemetry OTLP Exporter。下面的示例将展示如何结合使用 `otlpmetric` 和 `mmetric`。
 
 ### 1. 安装依赖
 
@@ -31,93 +42,86 @@
 go get github.com/graingo/maltose/contrib/metric/otlpmetric
 ```
 
-### 2. 初始化
+### 2. 初始化与使用
 
-在您的应用启动时，初始化 `otlpmetric` 包。
+在应用启动时，调用 `otlpmetric.Init()` 来配置并注册全局的 `MeterProvider`。一旦初始化完成，您就可以在项目的任何地方通过 `mmetric` 的辅助函数（如 `mmetric.NewMustCounter`）来定义和使用指标。
 
 ```go
 package main
 
 import (
-    "context"
-    "log"
+	"context"
+	"log"
+	"time"
 
-    "github.com/graingo/maltose/contrib/metric/otlpmetric"
+	"github.com/graingo/maltose/contrib/metric/otlpmetric"
+	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+// 1. 在包级别定义指标，确保只创建一次
+var (
+	orderCounter = mmetric.NewMustCounter(
+		"orders.created.total", // 指标名称
+		mmetric.MetricOption{
+			Help: "Total number of created orders",
+			Unit: "1", // "1" 表示这是一个计数
+		},
+	)
 )
 
 func main() {
-    // 初始化 OTLP 指标导出器 (默认使用 gRPC)
-    shutdown, err := otlpmetric.Init("localhost:4317",
-        otlpmetric.WithServiceName("my-service"),
-        otlpmetric.WithServiceVersion("1.0.0"),
-    )
-    if err != nil {
-        log.Fatalf("初始化指标失败: %v", err)
-    }
-    defer shutdown(context.Background())
+	// 2. 使用 otlpmetric 初始化全局 MeterProvider
+	//    它会创建一个 OTLP exporter，并将其注册为全局提供者。
+	//    参数: OpenTelemetry Collector 的 gRPC 地址。
+	shutdown, err := otlpmetric.Init("localhost:4317",
+		otlpmetric.WithServiceName("my-order-service"),
+		otlpmetric.WithServiceVersion("1.0.0"),
+		otlpmetric.WithExportInterval(5*time.Second), // 设置导出间隔
+	)
+	if err != nil {
+		log.Fatalf("初始化指标失败: %v", err)
+	}
+	defer shutdown(context.Background())
 
-    // ... 您的应用逻辑 ...
+	// 3. 模拟业务逻辑并使用指标
+	log.Println("开始处理订单...")
+	// 启动一个 goroutine 持续创建订单
+	go func() {
+		for {
+			createOrder(context.Background(), "alipay")
+			time.Sleep(time.Second)
+		}
+	}()
+
+	log.Println("订单处理服务正在运行... 按 Ctrl+C 退出。")
+	// 阻塞主 goroutine，以便程序持续运行
+	select {}
+}
+
+func createOrder(ctx context.Context, channel string) {
+	// ... 业务逻辑 ...
+
+	// 增加计数器的值，并附带标签
+	orderCounter.Inc(ctx, mmetric.WithAttributes(
+		attribute.String("payment_channel", channel),
+		attribute.String("order_type", "normal"),
+	))
+	log.Printf("创建了一笔新订单，支付渠道: %s\n", channel)
 }
 ```
 
-### 3. 创建和使用自定义指标
+## 核心 API 概览
 
-```go
-package main
-
-import (
-    "context"
-    "time"
-    "github.com/graingo/maltose/os/mmetric"
-    "go.opentelemetry.io/otel/attribute"
-)
-
-// 1. 创建一个 Counter 指标
-var orderCounter = mmetric.MustCounter(
-    "orders.created.total",
-    mmetric.MetricOption{
-        Help: "Total number of created orders",
-    },
-)
-
-// 2. 在业务逻辑中使用
-func CreateOrder(ctx context.Context) {
-    // ... 业务逻辑 ...
-
-    // 增加计数器的值，并附带标签
-    orderCounter.Inc(ctx, mmetric.WithAttributes(
-        attribute.String("payment_channel", "alipay"),
-        attribute.String("order_type",      "normal"),
-    ))
-}
-```
-
-## 协议配置
-
-您可以轻松地在 gRPC 和 HTTP 协议之间切换。
-
-### 使用 HTTP
-
-```go
-// 初始化 OTLP HTTP 指标导出器
-shutdown, err := otlpmetric.Init("localhost:4318",
-    otlpmetric.WithServiceName("my-service-http"),
-    otlpmetric.WithProtocol(otlpmetric.ProtocolHTTP), // 切换为 HTTP
-    otlpmetric.WithURLPath("/v1/metrics"),            // 自定义路径
-)
-// ...
-```
-
-## 配置选项
-
-| 函数                                         | 说明                                                                |
-| :------------------------------------------- | :------------------------------------------------------------------ |
-| `WithServiceName(name string)`               | 设置服务名称。                                                      |
-| `WithServiceVersion(version string)`         | 设置服务版本。                                                      |
-| `WithEnvironment(env string)`                | 设置部署环境。                                                      |
-| `WithProtocol(protocol Protocol)`            | 设置协议 (`otlpmetric.ProtocolGRPC` 或 `otlpmetric.ProtocolHTTP`)。 |
-| `WithExportInterval(interval time.Duration)` | 设置指标导出间隔。                                                  |
-| `WithTimeout(timeout time.Duration)`         | 设置导出超时时间。                                                  |
-| `WithInsecure(insecure bool)`                | 启用/禁用非安全连接。                                               |
-| `WithURLPath(path string)`                   | 设置 HTTP 导出器的 URL 路径。                                       |
-| `WithResourceAttribute(key, value string)`   | 添加自定义资源属性。                                                |
+| 函数/方法                                 | 说明                                                |
+| :---------------------------------------- | :-------------------------------------------------- |
+| `mmetric.NewMustCounter(name, opt)`       | 创建一个 `Counter` 指标，如果失败则 panic。         |
+| `mmetric.NewMustUpDownCounter(name, opt)` | 创建一个 `UpDownCounter` 指标，如果失败则 panic。   |
+| `mmetric.NewMustHistogram(name, opt)`     | 创建一个 `Histogram` 指标，如果失败则 panic。       |
+| `metric.Inc(ctx, opts...)`                | (UpDown)Counter 的方法，增加计数。                  |
+| `metric.Add(ctx, value, opts...)`         | (UpDown)Counter 的方法，增加一个指定的值。          |
+| `metric.Dec(ctx, opts...)`                | UpDownCounter 的方法，减少计数。                    |
+| `metric.Record(value, opts...)`           | Histogram 的方法，记录一个值。                      |
+| `mmetric.WithAttributes(attrs...)`        | 用于为单次指标操作附加临时的属性（标签）。          |
+| `mmetric.SetProvider(provider)`           | 设置全局的 `MeterProvider`。                        |
+| `mmetric.NewProvider(...)`                | 创建一个新的 `MeterProvider` (对 OTel SDK 的封装)。 |

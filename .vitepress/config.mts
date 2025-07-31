@@ -66,10 +66,22 @@ export default defineConfig({
             {
               text: "链路追踪",
               link: "/components/observability/tracing/",
+              items: [
+                {
+                  text: "设计思路",
+                  link: "/components/observability/tracing/design",
+                },
+              ],
             },
             {
               text: "指标监控",
               link: "/components/observability/metrics/",
+              items: [
+                {
+                  text: "设计思路",
+                  link: "/components/observability/metrics/design",
+                },
+              ],
             },
           ],
         },
