@@ -16,6 +16,7 @@ Maltose 框架提供了一系列设计精良、开箱即用的内置组件，以
   - [**关系型数据库 (mdb)**](./database/mdb.md): 基于 GORM 的数据库 ORM 组件，简化了数据库操作，并内置了连接池、读写分离和慢查询日志等功能。
   - [**Redis (mredis)**](./database/mredis.md): 配置驱动的 Redis 客户端，集成链路追踪和日志。
 - [**缓存 (mcache)**](./cache.md): 支持多种缓存介质（内存、Redis）的通用缓存组件，采用适配器模式，易于扩展。
+- [**并发控制 (msync)**](./concurrency.md): 提供 SingleFlight、LockedCalls、Limit、Pool 等并发控制工具，用于防止缓存击穿、控制并发数量、管理对象池等高并发场景。
 
 ## 可观测性
 

@@ -57,6 +57,7 @@ export default defineConfig({
               ],
             },
             { text: "缓存", link: "/components/cache" },
+            { text: "并发控制", link: "/components/concurrency" },
           ],
         },
         {

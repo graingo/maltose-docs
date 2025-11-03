@@ -52,7 +52,7 @@ m.Log().Infof(ctx, "Redis host: %s", redisHost.String())
 
 ### `m.Log()`
 
-获取 `mlog` 日志组件的实例。
+获取 `mlog` 日志组件的实例。`mlog` 基于 Uber 的 [Zap](https://github.com/uber-go/zap) 实现，提供高性能的结构化日志能力。
 
 ```go
 // 获取默认 logger 并打印日志

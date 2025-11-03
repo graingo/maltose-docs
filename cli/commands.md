@@ -153,13 +153,17 @@
 
 - **Flags**:
 
-  - `-s, --src`: API 定义文件的源路径。默认为 `api`。
+  - `-n, --name`: 指定要生成的服务名称(如 `user`)。使用此参数时，会直接创建一个单独的 Service 接口文件，而不是扫描 API 定义。这在您想快速创建服务骨架时非常有用。
+  - `-s, --src`: API 定义文件的源路径。默认为 `api`。当使用 `-n, --name` 参数时，此选项将被忽略。
   - `-d, --dst`: 生成文件的目标路径。默认为 `internal`。
-  - `-m, --mode`: 生成模式，`interface` (默认) 或 `struct`。`interface` 模式会生成 Service 接口，是推荐的最佳实践。
+  - `-m, --mode`: 生成模式，`interface` (默认) 或 `struct`。`interface` 模式会生成 Service 接口，是推荐的最佳实践。当使用 `-n, --name` 参数时，此选项将被忽略。
 
 - **示例**:
 
   ```bash
+  # 直接创建名为 user 的 Service 接口文件
+  maltose gen service -n user
+
   # 扫描 api 目录，生成 Controller 和 Service 接口
   maltose gen service
 

@@ -67,6 +67,8 @@ log:
   max_size: 100 # (MB) 单个文件最大体积
   max_backups: 10 # 最多保留的旧文件数量
   max_age: 7 # (天) 旧文件最大保留天数
+
+  # 注意：YAML 配置中使用下划线命名（ctx_keys），对应结构体字段为 CtxKeys
 ```
 
 #### 示例 2: 按日期轮转 (Date-based Rotation)
@@ -84,6 +86,8 @@ log:
   # 每天生成一个新日志文件，例如：access-2023-10-27.log
   filepath: "/var/log/app/access-{YYYY}-{MM}-{DD}.log"
   max_age: 30 # (天) 日志文件最长保留30天
+
+  # 注意：YAML 配置中使用下划线命名，对应结构体字段名使用驼峰命名
 ```
 
 ### 配置参数详解

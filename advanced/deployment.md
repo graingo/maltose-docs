@@ -102,4 +102,374 @@ docker run -d -p 8080:8080 --name my-app-container my-app:latest
 docker logs -f my-app-container
 ```
 
-这个 `Dockerfile` 为您提供了一个坚实的起点，您可以根据自己项目的具体需求（例如，需要安装额外的工具、处理静态资源等）对其进行调整。
+## Docker Compose 部署
+
+在生产环境中，应用通常需要依赖数据库、Redis 等服务。使用 Docker Compose 可以方便地管理多个容器。
+
+### 完整的 docker-compose.yml
+
+在项目根目录创建 `docker-compose.yml` 文件：
+
+```yaml
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: maltose-app
+    ports:
+      - "8080:8080"
+    environment:
+      # 覆盖配置文件中的设置
+      - APP_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - REDIS_ADDR=redis:6379
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: maltose-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-your_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-myapp}
+      MYSQL_USER: ${MYSQL_USER:-myapp}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-myapp_password}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 可选：导入初始化 SQL
+      # - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-your_password}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: maltose-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge
+```
+
+### 环境变量管理
+
+创建 `.env` 文件存储敏感信息（**不要提交到 Git**）：
+
+```bash
+# .env
+APP_ENV=production
+
+# MySQL
+MYSQL_ROOT_PASSWORD=your_secure_root_password
+MYSQL_DATABASE=myapp
+MYSQL_USER=myapp
+MYSQL_PASSWORD=your_secure_password
+
+# Redis
+REDIS_PASSWORD=your_redis_password
+```
+
+在 `.gitignore` 中添加：
+
+```
+.env
+.env.local
+.env.production
+```
+
+### 使用 Docker Compose
+
+```bash
+# 启动所有服务
+docker-compose up -d
+
+# 查看服务状态
+docker-compose ps
+
+# 查看日志
+docker-compose logs -f app
+
+# 停止所有服务
+docker-compose down
+
+# 停止并删除数据卷（谨慎使用）
+docker-compose down -v
+```
+
+## Dockerfile 优化
+
+### 添加健康检查
+
+更新 Dockerfile，添加健康检查支持：
+
+```dockerfile
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/server .
+
+FROM alpine:latest
+
+# 安装必要的工具
+RUN apk --no-cache add ca-certificates wget
+
+WORKDIR /app
+COPY --from=builder /app/server .
+COPY --from=builder /app/config ./config
+
+EXPOSE 8080
+
+# 添加健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --spider -q http://localhost:8080/health || exit 1
+
+CMD ["./server"]
+```
+
+### 使用 .dockerignore
+
+创建 `.dockerignore` 文件，减少构建上下文大小：
+
+```
+.git
+.gitignore
+.env
+.env.*
+README.md
+*.md
+.vscode
+.idea
+*.log
+tmp/
+dist/
+```
+
+## Kubernetes 部署
+
+### Deployment 配置
+
+创建 `k8s/deployment.yaml`：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maltose-app
+  labels:
+    app: maltose-app
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: maltose-app
+  template:
+    metadata:
+      labels:
+        app: maltose-app
+    spec:
+      containers:
+      - name: app
+        image: your-registry/maltose-app:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8080
+          name: http
+        env:
+        - name: APP_ENV
+          value: "production"
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: db_host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: db_password
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        volumeMounts:
+        - name: config
+          mountPath: /app/config
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: app-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maltose-app-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: maltose-app
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+```
+
+### ConfigMap 配置
+
+创建 `k8s/configmap.yaml`：
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  db_host: "mysql-service"
+  db_port: "3306"
+  db_name: "myapp"
+  redis_addr: "redis-service:6379"
+  config.yaml: |
+    server:
+      address: ":8080"
+    log:
+      level: "info"
+      stdout: false
+      filepath: "/app/logs/app.log"
+```
+
+### Secret 配置
+
+创建 `k8s/secret.yaml`：
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: app-secrets
+type: Opaque
+stringData:
+  db_password: "your_secure_password"
+  redis_password: "your_redis_password"
+```
+
+### 部署到 K8s
+
+```bash
+# 应用配置
+kubectl apply -f k8s/configmap.yaml
+kubectl apply -f k8s/secret.yaml
+kubectl apply -f k8s/deployment.yaml
+
+# 查看部署状态
+kubectl get deployments
+kubectl get pods
+kubectl get services
+
+# 查看日志
+kubectl logs -f deployment/maltose-app
+
+# 扩容
+kubectl scale deployment maltose-app --replicas=5
+```
+
+## 生产环境检查清单
+
+部署到生产环境前，请确保：
+
+### 安全性
+- [ ] 配置文件中的敏感信息（密码、密钥）已移至环境变量或 Secret
+- [ ] 启用 HTTPS/TLS
+- [ ] 设置合理的 CORS 策略
+- [ ] 启用请求限流
+- [ ] 日志中不包含敏感信息
+
+### 可观测性
+- [ ] 日志级别设置为 INFO 或 WARN
+- [ ] 启用链路追踪（Jaeger/Zipkin）
+- [ ] 配置指标监控（Prometheus）
+- [ ] 设置告警规则
+- [ ] 实现健康检查接口
+
+### 性能
+- [ ] 数据库连接池参数已优化
+- [ ] Redis 连接池参数已优化
+- [ ] 启用 HTTP/2
+- [ ] 配置合理的超时时间
+- [ ] 启用 GZIP 压缩
+
+### 可靠性
+- [ ] 配置优雅停机
+- [ ] 设置资源限制（内存、CPU）
+- [ ] 配置重启策略
+- [ ] 启用健康检查
+- [ ] 配置备份策略
+
+### 其他
+- [ ] 配置日志轮转
+- [ ] 设置时区（容器中）
+- [ ] 准备回滚方案
+- [ ] 文档已更新

@@ -1,6 +1,6 @@
 # 配置管理
 
-`mcfg` 是 Maltose 框架提供的配置管理组件，它基于 [Viper](https://github.com/spf13/viper) 构建，并提供了更简洁的、面向实例的接口和可扩展的适配器模式。
+`mcfg` 是 Maltose 框架提供的配置管理组件，提供了简洁的、面向实例的接口和可扩展的适配器模式。
 
 ## 特性
 
@@ -69,6 +69,78 @@ func main() {
 }
 ```
 
+### 类型安全的便捷方法
+
+除了通用的 `Get` 方法，`mcfg` 还提供了一系列类型安全的便捷方法，让您可以直接获取特定类型的配置值：
+
+```go
+// 获取字符串
+appName := cfg.GetString(ctx, "server.name") // "my-app"
+
+// 获取整数
+port := cfg.GetInt(ctx, "server.port") // 9000
+
+// 获取布尔值
+debug := cfg.GetBool(ctx, "server.debug") // true/false
+
+// 获取浮点数
+ratio := cfg.GetFloat64(ctx, "server.ratio") // 0.5
+
+// 获取时间长度
+timeout := cfg.GetDuration(ctx, "server.timeout") // 30s
+
+// 获取字符串数组
+hosts := cfg.GetStringSlice(ctx, "server.allowed_hosts") // []string{"localhost", "127.0.0.1"}
+```
+
+**优点**：
+- 类型安全，直接返回 Go 原生类型
+- 代码更简洁，无需手动类型转换
+- 如果配置项不存在或类型不匹配，返回该类型的零值
+
+### 配置结构体映射
+
+对于复杂的配置，`mcfg.Struct()` 方法可以将配置自动映射到结构体，提供更好的类型安全性和代码可读性：
+
+```go
+// 定义配置结构体
+type ServerConfig struct {
+    Name    string `yaml:"name"`
+    Port    int    `yaml:"port"`
+    Debug   bool   `yaml:"debug"`
+    Timeout int    `yaml:"timeout"`
+}
+
+type AppConfig struct {
+    Server   ServerConfig          `yaml:"server"`
+    Database map[string]any        `yaml:"database"`
+}
+
+// 将配置映射到结构体
+var appCfg AppConfig
+err := cfg.Struct(ctx, &appCfg, "")
+if err != nil {
+    panic(err)
+}
+
+// 访问配置
+fmt.Println("Server Name:", appCfg.Server.Name)
+fmt.Println("Server Port:", appCfg.Server.Port)
+
+// 也可以只映射部分配置
+var serverCfg ServerConfig
+err = cfg.Struct(ctx, &serverCfg, "server")
+if err != nil {
+    panic(err)
+}
+```
+
+**使用场景**：
+- 配置项较多且结构清晰
+- 需要类型安全的配置访问
+- 希望利用结构体标签进行验证
+- 需要在初始化时一次性加载所有配置
+
 ## 多实例管理
 
 如果您的项目需要加载多个配置文件，可以使用 `m.Config(name)` 来获取具名的配置实例。
@@ -131,6 +203,26 @@ value, _ := customCfg.Get(ctx, "some.key.from.nacos")
 ```
 
 Maltose 在 `contrib/config` 中已经提供了一些常用的配置中心适配器，您可以直接使用。
+
+### 清除缓存
+
+如果您使用了支持缓存的自定义适配器，可以手动清除缓存：
+
+```go
+// 清除配置缓存
+// 注意：这会触发适配器重新加载配置
+cfg.ClearCache()
+```
+
+**使用场景**：
+- 开发环境下实现配置热重载
+- 配置中心推送了配置更新通知
+- 需要强制刷新配置
+
+**注意事项**：
+- 默认的文件适配器不使用缓存，调用此方法无效果
+- 生产环境不建议频繁调用，可能影响性能
+- 如果使用远程配置中心，清除缓存会触发网络请求
 
 ## 配置加载钩子 (Hooks)
 
