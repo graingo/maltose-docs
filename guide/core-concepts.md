@@ -82,7 +82,7 @@ func main() {
 	s := mhttp.New()
 	s.SetAddress(":8080")
 	s.GET("/", func(r *mhttp.Request) {
-		r.Response.Write("Hello, Maltose App!")
+		r.String(200, "Hello, Maltose App!")
 	})
 
 	// 2. 创建一个模拟的清理任务
@@ -104,7 +104,7 @@ func main() {
 	// 4. 启动应用
 	// Run() 方法会阻塞，并监听操作系统的退出信号 (SIGINT, SIGTERM)
 	if err := app.Run(); err != nil {
-		mlog.Errorf(context.Background(), "应用启动失败: %v", err)
+		mlog.Errorf(context.Background(), err, "应用启动失败")
 	}
 }
 ```
@@ -116,12 +116,12 @@ func main() {
 ```go
 type AppServer interface {
     Start(ctx context.Context) error
-    Shutdown(ctx context.Context) error
+    Stop(ctx context.Context) error
 }
 ```
 
 - `Start(ctx)`: 启动服务，该方法应该是阻塞式的，直到服务停止或 `ctx` 被取消。
-- `Shutdown(ctx)`: 优雅地关闭服务。框架会为这个 `ctx` 设置一个超时时间（默认为 10 秒），以防止关停过程无限阻塞。
+- `Stop(ctx)`: 优雅地关闭服务。框架会为这个 `ctx` 设置一个超时时间（默认为 10 秒），以防止关停过程无限阻塞。
 
 ### 关停钩子 (Shutdown Hooks)
 

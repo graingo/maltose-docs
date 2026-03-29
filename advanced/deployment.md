@@ -395,7 +395,7 @@ data:
   config.yaml: |
     server:
       address: ":8080"
-    log:
+    logger:
       level: "info"
       stdout: false
       filepath: "/app/logs/app.log"

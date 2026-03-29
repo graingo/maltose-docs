@@ -219,20 +219,20 @@ value, err := cache.SetIfNotExistFuncLock(ctx, "user:123",
 3. 第一个请求完成后，所有请求都能获得结果
 4. 只有一次数据库查询，避免了缓存击穿
 
-### 与 msync 的配合使用
+### 与 `singleflight` 的配合使用
 
-对于更复杂的并发控制场景（如跨实例的请求合并、分布式环境下的缓存击穿），建议使用 **msync** 的 `SingleFlight` 组件：
+对于更复杂的请求合并场景，可以直接配合 `golang.org/x/sync/singleflight` 使用：
 
 ```go
 import (
+    "golang.org/x/sync/singleflight"
+
     "github.com/graingo/maltose/os/mcache"
-    "github.com/graingo/maltose/util/msync"
 )
 
-sf := msync.NewSingleFlight()
+var sf singleflight.Group
 
-// 使用 SingleFlight 包装缓存操作
-value, err := sf.Do(ctx, "user:123", func(ctx context.Context) (interface{}, error) {
+value, err, _ := sf.Do("user:123", func() (any, error) {
     // 1. 先尝试从缓存获取
     cached, err := cache.Get(ctx, "user:123")
     if err == nil && !cached.IsNil() {
@@ -251,10 +251,4 @@ value, err := sf.Do(ctx, "user:123", func(ctx context.Context) (interface{}, err
 })
 ```
 
-**msync.SingleFlight 的优势**：
-- 支持跨多个缓存实例的请求合并
-- 提供更细粒度的控制（超时、错误共享等）
-- 适用于分布式环境
-- 可以获取请求是否是新鲜加载的（`DoEx` 方法）
-
-**更多并发控制能力，请参考** → [并发控制](./concurrency.md)
+这种方式适合在进程内避免缓存击穿。如果需要跨实例协调，则应结合 Redis 锁或专门的分布式组件设计。

@@ -2,7 +2,7 @@
 
 ### Q: Maltose 和 Go-Frame (GF) 是什么关系？
 
-**A:** Maltose 在设计哲学和分层思想上深度参考了 [Go-Frame](https://goframe.org)，特别是其工程化的目录结构、模块化的组件设计以及面向接口的开发模式。然而，Maltose 并非 GF 的封装或分支。Maltose 在底层技术选型上更为轻量，例如 Web 框架基于 Gin（而非 GF 自研的 ghttp），ORM 基于 GORM（而非 GF 的 gorm），配置和日志组件也选择了 Logrus 等社区广泛认可的库。
+**A:** Maltose 在设计哲学和分层思想上深度参考了 [Go-Frame](https://goframe.org)，特别是其工程化的目录结构、模块化的组件设计以及面向接口的开发模式。然而，Maltose 并非 GF 的封装或分支。Maltose 在底层技术选型上更为轻量，例如 Web 框架基于 Gin（而非 GF 自研的 ghttp），ORM 基于 GORM（而非 GF 的 gorm），日志组件则基于 Zap 做了结构化封装。
 
 您可以将 Maltose 看作是 "GF 的设计思想" + "Gin 生态" 的一个实践，旨在提供一个同样强大但更易于上手和定制的开发框架。
 
@@ -62,14 +62,43 @@ func WsHandler(r *mhttp.Request) {
 
 ### Q: 如何自定义框架的错误响应格式？
 
-**A:** 框架默认的响应格式是由 `mhttp.MiddlewareResponse()` 中间件控制的。如果您想完全替换它，可以移除这个中间件，并编写您自己的响应处理中间件。
+**A:** 框架默认的响应格式是由 `mhttp.MiddlewareResponse()` 中间件控制的。如果您想完全替换它，可以不要挂载这个中间件，再编写自己的响应处理中间件。
 
 您的自定义中间件可以：
 
 1.  调用 `r.Next()` 执行业务逻辑。
-2.  检查 `r.Response.GetError()` 是否有错误。
-3.  根据错误类型（是否为 `*merror.Error`）来构建您自己的 JSON 结构。
-4.  使用 `r.SetJson()` 或类似方法将最终的响应写入 `http.ResponseWriter`。
+2.  检查 `r.Writer.Written()`，避免重复写响应。
+3.  检查 `r.Errors` 是否有错误。
+4.  使用 `r.JSON(...)` 输出您自己的响应结构。
+
+```go
+func CustomResponseMiddleware() mhttp.MiddlewareFunc {
+    return func(r *mhttp.Request) {
+        r.Next()
+
+        if r.Writer.Written() {
+            return
+        }
+
+        if len(r.Errors) > 0 {
+            err := r.Errors.Last().Err
+            code := merror.Code(err)
+
+            r.JSON(http.StatusInternalServerError, map[string]any{
+                "success": false,
+                "code":    code.Code(),
+                "message": err.Error(),
+            })
+            return
+        }
+
+        r.JSON(http.StatusOK, map[string]any{
+            "success": true,
+            "data":    r.GetHandlerResponse(),
+        })
+    }
+}
+```
 
 ### Q: 我该如何为一个 Logic/Service 编写单元测试？
 
@@ -152,10 +181,11 @@ m.Redis().SetSlowThreshold(10 * time.Millisecond)
 1. **KEYS 命令**: 永远不要在生产环境使用 `KEYS *`，它会阻塞 Redis。改用 `SCAN` 命令。
    ```go
    // ❌ 错误: 会阻塞 Redis
-   keys, _ := redis.Keys(ctx, "*user*").Result()
+   keys, _ := m.Redis().Keys(ctx, "*user*")
 
    // ✅ 正确: 使用 SCAN
-   iter := redis.Scan(ctx, 0, "*user*", 100).Iterator()
+   client := m.Redis().Client()
+   iter := client.Scan(ctx, 0, "*user*", 100).Iterator()
    for iter.Next(ctx) {
        key := iter.Val()
        // 处理 key
@@ -166,7 +196,7 @@ m.Redis().SetSlowThreshold(10 * time.Millisecond)
 
 3. **Pipeline 优化**: 批量操作时使用 Pipeline。
    ```go
-   pipe := redis.Pipeline()
+   pipe := m.Redis().Client().Pipeline()
    for i := 0; i < 100; i++ {
        pipe.Set(ctx, fmt.Sprintf("key:%d", i), i, 0)
    }
@@ -276,10 +306,10 @@ counter.Inc(ctx, mmetric.Labels{"status": "success"})
 
 ```go
 // 结构化日志便于查询
-mlog.Info(ctx, "User login",
-    "user_id", userID,
-    "ip", clientIP,
-    "duration", duration,
+mlog.Infow(ctx, "User login",
+    mlog.Int("user_id", userID),
+    mlog.String("ip", clientIP),
+    mlog.Duration("duration", duration),
 )
 ```
 
@@ -292,16 +322,18 @@ mlog.Info(ctx, "User login",
 ```go
 // 在 Controller 中暴露健康检查接口
 func HealthCheck(r *mhttp.Request) {
+    ctx := r.Request.Context()
+
     // 检查数据库连接
     if err := m.DB().Ping(ctx); err != nil {
-        r.Response.WriteStatusExit(500, mhttp.Json{
+        r.JSON(500, map[string]any{
             "status": "unhealthy",
             "database": "down",
         })
         return
     }
 
-    r.Response.WriteJson(mhttp.Json{
+    r.JSON(200, map[string]any{
         "status": "healthy",
     })
 }
@@ -347,7 +379,8 @@ func CallUserService(ctx context.Context, userID int) (*User, error) {
     req, _ := http.NewRequestWithContext(ctx, "GET",
         fmt.Sprintf("http://user-service/users/%d", userID), nil)
 
-    // OTel 会自动注入 traceparent header
+    otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
+
     resp, err := http.DefaultClient.Do(req)
     // ...
 }

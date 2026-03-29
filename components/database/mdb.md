@@ -137,11 +137,11 @@ if err := db.Ping(ctx); err != nil {
 ```go
 // 在 controller 中实现健康检查
 func Health(r *mhttp.Request) {
-    ctx := r.Context()
+    ctx := r.Request.Context()
 
     // 检查数据库连接
     if err := m.DB().Ping(ctx); err != nil {
-        r.Response.WriteJsonExit(mhttp.Json{
+        r.JSON(500, map[string]any{
             "status": "unhealthy",
             "database": "failed",
             "error": err.Error(),
@@ -149,7 +149,7 @@ func Health(r *mhttp.Request) {
         return
     }
 
-    r.Response.WriteJsonExit(mhttp.Json{
+    r.JSON(200, map[string]any{
         "status": "healthy",
         "database": "ok",
     })
@@ -247,7 +247,7 @@ err := db.TransactWithOptions(ctx, &sql.TxOptions{
 
 `mdb` 最强大的功能之一就是与可观测性组件的无缝集成。
 
-- **日志**: 任何由 `mdb` 执行的 SQL 语句都会被 `mlog` 记录下来。如果执行时间超过了您在配置中设置的 `slowThreshold`，日志级别会自动提升为 `Warn`。最重要的是，所有 SQL 日志都会自动包含当前请求的 `trace_id`，让您能轻易地将慢查询和特定请求关联起来。
+- **日志**: 任何由 `mdb` 执行的 SQL 语句都会被 `mlog` 记录下来。如果执行时间超过了您在配置中设置的 `slow_threshold`，日志级别会自动提升为 `Warn`。日志中的链路字段名是 `trace.id` 和 `span.id`，可以直接关联到具体请求。
 - **链路**: 每次数据库查询都会在 OpenTelemetry 中创建一个新的 `Span`，其父节点是当前业务逻辑的 `Span`。这使得您可以在 Jaeger, Zipkin 等系统中清晰地看到每一次请求中包含的数据库调用及其耗时。
 
 您无需为这些功能编写任何额外代码，它们都是开箱即用的。

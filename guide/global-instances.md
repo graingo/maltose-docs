@@ -1,104 +1,105 @@
 # 全局对象
 
-为简化开发，Maltose 框架提供了一个特殊的全局包 `m`，它作为所有核心组件实例的统一入口。这一设计借鉴了 [GoFrame 的 g 对象](https://goframe.org/docs/core/g)，旨在提供最便捷的开发体验。
+Maltose 提供了 `frame/m` 包作为核心组件的统一入口。它负责获取默认实例或具名实例，减少手动初始化样板代码。
 
-通过 `m` 包，您可以轻松获取任何核心组件的默认或具名实例，而无需关心它们的初始化和单例管理。
-
-## 使用方法
-
-在您的项目中，只需 `import` `github.com/graingo/maltose/frame/m` 包，即可通过 `m.` 前缀访问所有核心组件。
+## 使用方式
 
 ```go
 import "github.com/graingo/maltose/frame/m"
-
-// 使用 m.Log() 获取默认日志组件
-m.Log().Info(ctx, "This is a log message.")
-
-// 使用 m.DB() 获取默认数据库实例
-var user User
-err := m.DB().WithContext(ctx).First(&user, 1).Error
 ```
 
-## 核心对象
-
-以下是 `m` 包中提供的常用对象获取方法：
+## 常用对象
 
 ### `m.Server()`
 
-获取 `mhttp` HTTP 服务器的实例。
-
 ```go
-// 获取默认服务器实例
 s := m.Server()
 s.GET("/", func(r *mhttp.Request) {
-    r.Response.Write("hello")
+    r.String(200, "hello")
 })
 s.Run()
 ```
 
 ### `m.Config()`
 
-获取 `mcfg` 配置管理组件的实例。
-
 ```go
-// 获取默认配置 (config/config.yaml)
-port, _ := m.Config().Get(ctx, "server.port")
-m.Log().Infof(ctx, "Server port: %d", port.Int())
+ctx := context.Background()
 
-// 获取具名配置 (config/redis.yaml)
-redisHost, _ := m.Config("redis").Get(ctx, "host")
-m.Log().Infof(ctx, "Redis host: %s", redisHost.String())
+appName, _ := m.Config().Get(ctx, "app.name")
+fmt.Println(appName.String())
 ```
 
 ### `m.Log()`
 
-获取 `mlog` 日志组件的实例。`mlog` 基于 Uber 的 [Zap](https://github.com/uber-go/zap) 实现，提供高性能的结构化日志能力。
-
 ```go
-// 获取默认 logger 并打印日志
-m.Log().Info(ctx, "用户登录成功")
+ctx := context.Background()
 
-// 获取名为 "access" 的 logger
-m.Log("access").Info(ctx, "访问日志")
+m.Log().Infof(ctx, "user %s login", "alice")
+m.Log().Infow(ctx, "user login", mlog.String("user", "alice"))
 ```
 
 ### `m.DB()`
 
-获取 `mdb` 数据库 ORM 的实例。
+```go
+ctx := context.Background()
+
+var user User
+err := m.DB().WithContext(ctx).
+    Where("name = ?", "maltose").
+    First(&user).
+    Error
+```
+
+### `m.DBContext()`
 
 ```go
-// 获取默认数据库实例并查询
-var user User
-err := m.DB().WithContext(ctx).Where("name = ?", "maltose").First(&user).Error
+ctx := context.Background()
 
-// 获取 "user" 数据库实例
-// (需要在配置文件中定义 database.user)
-err = m.DB("user").WithContext(ctx).First(&user).Error
+var user User
+err := m.DBContext(ctx).
+    Where("id = ?", 1).
+    First(&user).
+    Error
 ```
 
 ### `m.Redis()`
 
-获取 `mredis` Redis 客户端的实例。
+```go
+ctx := context.Background()
+
+if err := m.Redis().SetEX(ctx, "mykey", "myvalue", time.Minute); err != nil {
+    panic(err)
+}
+
+val, err := m.Redis().Get(ctx, "mykey")
+if err != nil {
+    panic(err)
+}
+if val != nil {
+    fmt.Println(val.String())
+}
+```
+
+## 具名实例
+
+`Server`、`Config`、`Log`、`DB`、`Redis` 都支持具名实例。
 
 ```go
-// 获取默认 Redis 实例
-err := m.Redis().Set(ctx, "mykey", "myvalue", time.Minute).Err()
-
-// 获取 "cache" Redis 实例
-// (需要在配置文件中定义 redis.cache)
-err = m.Redis("cache").Get(ctx, "mykey").Err()
+cache := m.Redis("cache")
+accessLogger := m.Log("access")
+reportDB := m.DB("report")
 ```
 
 ## 关于 `mcache`
 
-`mcache` 组件的设计稍有不同。它自身提供了包级别的函数（如 `mcache.Get`, `mcache.Set`），这些函数操作的是一个默认的、基于内存的全局缓存实例。这种设计是为了让最基础的缓存使用场景变得极其简单。
+`mcache` 不通过 `m` 包暴露默认实例，而是直接提供包级方法：
 
 ```go
-// 直接使用包级函数，操作默认的内存缓存
 mcache.Set(ctx, "my-key", "my-value", time.Minute)
 val, _ := mcache.Get(ctx, "my-key")
 ```
 
-如果需要使用 Redis 或其他介质作为缓存，您需要手动创建 `mcache` 实例并为其提供一个适配器，此时便不通过 `m` 包来获取。
+## 使用建议
 
-通过 `m` 全局对象，Maltose 将组件的复杂初始化和生命周期管理过程完全封装，让开发者可以更专注于业务逻辑的实现。
+- 中小型项目里，直接使用全局对象通常已经足够。
+- 如果你在做高强度单元测试或复杂依赖替换，建议把全局对象包在自己的 service 层里，减少直接耦合。

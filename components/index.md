@@ -11,12 +11,12 @@ Maltose 框架提供了一系列设计精良、开箱即用的内置组件，以
   - [**路由 (Routing)**](./server/routing.md): 强大而灵活的路由系统，支持路由分组、中间件和便捷的控制器绑定。
   - [**中间件 (Middleware)**](./server/middleware.md): 在请求处理链中插入自定义逻辑，用于处理横切关注点。
 - [**配置管理 (mcfg)**](./configuration.md): 支持多种数据源的统一配置解决方案，采用适配器模式，易于扩展。
-- [**日志 (mlog)**](./logging.md): 基于 Logrus 的结构化日志组件，支持日志分级、文件归档、TraceID 自动注入等功能。
+- [**日志 (mlog)**](./logging.md): 基于 Zap 的结构化日志组件，支持日志分级、文件归档、链路字段自动注入等功能。
 - **数据库**:
   - [**关系型数据库 (mdb)**](./database/mdb.md): 基于 GORM 的数据库 ORM 组件，简化了数据库操作，并内置了连接池、读写分离和慢查询日志等功能。
   - [**Redis (mredis)**](./database/mredis.md): 配置驱动的 Redis 客户端，集成链路追踪和日志。
 - [**缓存 (mcache)**](./cache.md): 支持多种缓存介质（内存、Redis）的通用缓存组件，采用适配器模式，易于扩展。
-- [**并发控制 (msync)**](./concurrency.md): 提供 SingleFlight、LockedCalls、Limit、Pool 等并发控制工具，用于防止缓存击穿、控制并发数量、管理对象池等高并发场景。
+- [**并发控制**](./concurrency.md): 当前版本该章节仅保留状态说明，避免误用尚未公开的并发工具接口。
 
 ## 可观测性
 
