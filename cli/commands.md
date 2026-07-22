@@ -20,23 +20,32 @@
 
   - 克隆官方的 [maltose-quickstart](https://github.com/graingo/maltose-quickstart) 模板到指定的 `[project-name]` 目录。
   - 自动移除模板中的 `.git` 目录，以便您初始化自己的 Git 仓库。
-  - 智能地更新 `go.mod` 文件，将其 `module` 路径设置为符合您当前工作目录的路径，方便您立即开始开发。
+  - 自动更新 `go.mod`；默认 module path 为 `[project-name]`，也可用 `--module` 显式指定。
+  - 当前不会同步改写模板 Go 文件中的 import path；生成后需将模板原 module 前缀全局替换为新 module path。
 
 - **参数**:
 
   - `[project-name]` (必需): 您要创建的新项目的名称。
+
+- **Flags**:
+
+  - `--module`: 指定生成项目的 Go module path，例如 `github.com/acme/my-app`。
+  - `--repo-url`: 使用自定义 Git 模板仓库地址；默认克隆官方 quickstart。
 
 - **示例**:
 
   ```bash
   # 在当前目录下创建一个名为 my-app 的新项目
   maltose new my-app
+
+  # 推荐为可发布项目显式设置 module path
+  # maltose new my-app --module github.com/acme/my-app
   cd my-app
   go mod tidy
   go run .
   ```
 
-- **后续步骤**: 项目创建后，您可以立即运行 `go run .` 来启动示例应用，然后根据业务需求继续使用其他生成命令。
+- **后续步骤**: 项目创建后先完成模板 Controller 中标记为 `implement me` 的方法，再运行服务。可参考[快速上手](../guide/getting-started.md)。
 
 ### 2. 数据层生成
 
@@ -232,14 +241,23 @@
 
 - **功能**:
 
-  - 扫描 `api` 目录下的 Go 文件，解析请求结构体中的 `mmeta.Meta` 元信息（路径、方法、标签等）。
+  - 扫描 `api` 目录下的 Go 文件，解析请求结构体中嵌入的 `m.Meta` 标签元信息（路径、方法、标签等）。
   - **深度解析结构体**：能够递归地解析请求和响应结构体，包括**嵌套结构体**、**指针**和**切片**类型。
   - **自动生成组件定义**：为所有解析到的自定义类型（如 `Image`, `File`）在 `components/schemas` 中创建完整的 schema 定义，并通过 `$ref` 在 API 操作中引用它们。
   - **支持多种输出格式**：可以生成 `yaml` 或 `json` 格式的规范文件。
 
 - **前置条件**:
 
-  - `api` 目录下的请求结构体（如 `*Req`）需要实现 `Meta() mmeta.Meta` 方法，并提供路由、方法等信息。
+  - `api` 目录下的请求结构体（如 `*Req`）需要匿名嵌入带标签的 `m.Meta`，例如：
+
+    ```go
+    type GetUserReq struct {
+        m.Meta `path:"/users/{id}" method:"GET" tag:"用户" summary:"获取用户"`
+        ID     int64 `path:"id" dc:"用户 ID"`
+    }
+    ```
+
+  - 当前生成器支持 `GET`、`POST`、`PUT`、`DELETE`；使用其他方法会返回不支持的错误。
   - 结构体字段建议使用 `json`, `path`, `form`, `dc` (description) 等标签来提供详尽的元数据。
 
 - **Flags**:

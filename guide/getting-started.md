@@ -4,6 +4,8 @@
 
 ## 1. 安装
 
+请先安装 Go 1.23 或更高版本。
+
 我们强烈推荐使用 `go install` 来安装 `maltose` 命令行工具，这可以确保您总是使用最新的版本，并能方便地在任何地方调用它。
 
 ```bash
@@ -29,7 +31,21 @@ maltose new hello-maltose
 
 此命令会创建一个名为 `hello-maltose` 的目录，其中包含了预设的目录结构、示例代码以及所有必要的配置文件。
 
-## 3. 运行项目
+:::warning 检查模板 import path
+当前 `maltose new` 会更新 `go.mod` 的 module path，但不会同步替换模板 Go 文件中的 `github.com/graingo/maltose-quickstart` import。生成后请在 IDE 中将该前缀全局替换为 `go.mod` 第一行声明的 module path，否则 Go 的 `internal` 包规则会导致编译失败。
+:::
+
+## 3. 完成示例 Controller
+
+`maltose new` 创建的是可继续开发的项目骨架。模板中的 `Hello` Controller 默认保留了 `panic("implement me")`，运行前请打开 `internal/controller/hello/hello_v1.go`，将方法实现为：
+
+```go
+func (c *HelloV1) Hello(ctx context.Context, req *v1.HelloReq) (*v1.HelloRes, error) {
+	return &v1.HelloRes{Name: req.Name}, nil
+}
+```
+
+## 4. 运行项目
 
 进入项目目录，并启动服务。
 
@@ -47,15 +63,17 @@ go run .
 当您在终端看到类似以下的输出时，说明您的服务已经成功启动：
 
 ```text
-Listening and serving HTTP on :8080
+HTTP server maltose is running on :8081
 ```
 
-## 4. 发送请求
+> 模板依赖的 Maltose 版本由项目中的 `go.mod` 固定。如需升级到最新稳定版本，可在生成的项目中执行 `go get github.com/graingo/maltose@latest && go mod tidy`。
+
+## 5. 发送请求
 
 现在，打开一个新的终端，或使用任何 HTTP 客户端（如 `curl` 或 Postman）向您的新服务发送一个请求：
 
 ```bash
-curl http://127.0.0.1:8080/hello
+curl 'http://127.0.0.1:8081/api/v1/hello?name=Maltose&pass=demo'
 ```
 
 如果一切顺利，您将会收到如下响应：
@@ -63,9 +81,9 @@ curl http://127.0.0.1:8080/hello
 ```json
 {
   "code": 0,
-  "message": "success",
+  "message": "OK",
   "data": {
-    "message": "Hello World"
+    "name": "Maltose"
   }
 }
 ```

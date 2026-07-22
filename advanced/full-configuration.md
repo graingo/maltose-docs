@@ -56,12 +56,14 @@ database:
       stdout: true
 
     replicas:
-      - host: "192.168.1.2"
+      - type: "mysql"
+        host: "192.168.1.2"
         port: "3306"
         user: "readonly_user"
         password: "your_password"
         db_name: "my_database"
-      - host: "192.168.1.3"
+      - type: "mysql"
+        host: "192.168.1.3"
         port: "3306"
         user: "readonly_user"
         password: "your_password"
@@ -146,3 +148,7 @@ server:
 ### 5. 敏感信息不要直接写死
 
 数据库密码、Redis 密码、OTLP endpoint 凭证更适合由环境变量、Secret 或配置中心注入。
+
+### 6. 副本配置不会继承主库
+
+`database.*.replicas` 中的每一项都会独立创建驱动，因此需重复填写 `type` 和完整连接参数，或直接填写完整 `dsn`。

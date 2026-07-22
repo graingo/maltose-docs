@@ -211,14 +211,7 @@ m.Redis().SetSlowThreshold(10 * time.Millisecond)
 
 **推荐的生产配置实践**:
 
-1. **配置文件 + 环境变量组合**:
-   ```yaml
-   # config/config.yaml
-   database:
-     host: "${DB_HOST:127.0.0.1}"     # 优先使用环境变量 DB_HOST，默认 127.0.0.1
-     port: "${DB_PORT:3306}"
-     password: "${DB_PASSWORD}"        # 敏感信息必须用环境变量
-   ```
+1. **配置文件 + Secret/配置中心组合**：文件适配器不会自动展开 `${DB_HOST:default}` 一类表达式，不要把这种语法直接写进 `config.yaml`。可由 Kubernetes、部署脚本渲染完整配置文件，或通过 Nacos/Apollo 适配器及配置加载 Hook 合并敏感配置。
 
 2. **使用 Kubernetes ConfigMap 和 Secret**:
    ```yaml
@@ -242,7 +235,7 @@ m.Redis().SetSlowThreshold(10 * time.Millisecond)
    ```
 
 3. **配置热更新**:
-   框架目前**不支持自动热更新配置**。如果配置变更，需要重启服务。推荐的做法是：
+   默认文件适配器不监听磁盘变化，修改文件后通常需要重启服务。Nacos/Apollo 等远程适配器是否能实时看到更新，取决于适配器自身的监听与缓存策略。生产环境推荐：
    - 使用 Kubernetes Rolling Update 无缝更新
    - 对于特定配置项（如慢查询阈值），使用动态方法:
      ```go
@@ -257,13 +250,22 @@ m.Redis().SetSlowThreshold(10 * time.Millisecond)
      m.Redis().SetSlowThreshold(newThreshold)
      ```
 
-4. **多环境配置**: 使用不同的配置文件:
-   ```bash
-   # 开发环境
-   go run . -c config/config.dev.yaml
+4. **多环境配置**: Maltose 应用本身不会自动处理 `-c` 参数。应在任何组件首次读取配置前，显式选择文件：
 
-   # 生产环境
-   go run . -c config/config.prod.yaml
+   ```go
+   adapter, err := mcfg.NewAdapterFile()
+   if err != nil {
+       panic(err)
+   }
+   if err := adapter.SetFile(os.Getenv("APP_CONFIG")); err != nil {
+       panic(err)
+   }
+   m.Config().SetAdapter(adapter)
+   ```
+
+   ```bash
+   APP_CONFIG=config/config.dev.yaml go run .
+   APP_CONFIG=config/config.prod.yaml go run .
    ```
 
 ### Q: 如何监控应用性能和排查问题？

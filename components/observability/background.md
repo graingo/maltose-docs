@@ -56,7 +56,7 @@ Span 之间的关系形成了一个树状结构，称为 Trace（追踪）。一
 
 ```go
 // 创建 Span
-ctx, span := trace.NewSpan(ctx, "operation-name")
+ctx, span := mtrace.NewSpan(ctx, "operation-name")
 defer span.End()
 
 // 添加属性
@@ -126,14 +126,11 @@ Baggage 是一种在服务间传递键值对的机制，类似于 SpanContext，
 
 ```go
 // 设置 Baggage
-ctx = baggage.ContextWithValues(ctx,
-    attribute.String("user.id", "123"),
-    attribute.String("tenant.id", "456"),
-)
+ctx = mtrace.SetBaggageValue(ctx, "user.id", "123")
+ctx = mtrace.SetBaggageValue(ctx, "tenant.id", "456")
 
 // 获取 Baggage
-bag := baggage.FromContext(ctx)
-userID := bag.Member("user.id").Value()
+userID := mtrace.GetBaggageVar(ctx, "user.id").String()
 ```
 
 ## 采样策略
@@ -148,11 +145,17 @@ userID := bag.Member("user.id").Value()
 在 Maltose 中，默认使用 AlwaysOn 采样策略，您可以根据需要进行配置：
 
 ```go
-tp, err := trace.InitTracer(trace.Config{
-    ServiceName: "my-service",
-    Endpoint:    "http://localhost:14268/api/traces",
-    SamplingRate: 0.1, // 10% 采样率
-})
+shutdown, err := otlptrace.Init(
+    "localhost:4317",
+    otlptrace.WithServiceName("my-service"),
+    otlptrace.WithSampler(
+        sdktrace.ParentBased(sdktrace.TraceIDRatioBased(0.1)),
+    ),
+)
+if err != nil {
+    panic(err)
+}
+defer shutdown(context.Background())
 ```
 
 ## 总结

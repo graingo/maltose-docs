@@ -43,7 +43,7 @@ func main() {
     // 5秒后再次获取，此时缓存已过期
     time.Sleep(6 * time.Second)
     val, _ = mcache.Get(ctx, "my-key")
-    fmt.Println("Get after 6s:", val.IsNil()) // 输出: true
+    fmt.Println("Get after 6s:", val == nil) // 输出: true
 }
 ```
 
@@ -84,7 +84,7 @@ func main() {
     // 1. 为缓存单独创建一个 Redis 客户端，使用独立的 db，避免与其他业务混淆
     redisConfig := &mredis.Config{
         Address: "127.0.0.1:6379",
-        Db:      1, // 推荐为缓存使用独立的 db
+        DB:      1, // 推荐为缓存使用独立的 db
     }
     redisClient, err := mredis.New(redisConfig)
     if err != nil {
@@ -154,7 +154,8 @@ if exists {
 
 ```go
 // 只更新值，保持原有的过期时间
-err := cache.Update(ctx, "user:123", newUserData)
+oldValue, existed, err := cache.Update(ctx, "user:123", newUserData)
+// existed 为 false 表示原键不存在；oldValue 是更新前的值
 ```
 
 ### UpdateExpire - 更新过期时间
@@ -163,7 +164,8 @@ err := cache.Update(ctx, "user:123", newUserData)
 
 ```go
 // 将过期时间延长到 1 小时
-err := cache.UpdateExpire(ctx, "user:123", time.Hour)
+oldTTL, err := cache.UpdateExpire(ctx, "user:123", time.Hour)
+// oldTTL 是修改前的剩余有效时间
 ```
 
 ### GetExpire - 获取剩余过期时间
@@ -181,12 +183,12 @@ fmt.Printf("缓存还有 %v 过期\n", ttl)
 
 缓存击穿是指热点数据过期时，大量并发请求同时访问数据库的问题。`mcache` 提供了专门的方法来处理这种场景。
 
-### SetIfNotExistFunc - 获取或设置
+### SetIfNotExistFunc - 不存在时计算并设置
 
-如果缓存不存在，则执行函数加载数据并设置缓存：
+如果缓存不存在，则执行函数加载数据并尝试设置缓存。返回值表示本次调用是否成功写入，不是缓存内容：
 
 ```go
-value, err := cache.SetIfNotExistFunc(ctx, "user:123",
+created, err := cache.SetIfNotExistFunc(ctx, "user:123",
     func(ctx context.Context) (interface{}, error) {
         // 从数据库加载数据
         user, err := db.GetUser(ctx, 123)
@@ -199,12 +201,12 @@ value, err := cache.SetIfNotExistFunc(ctx, "user:123",
 )
 ```
 
-### SetIfNotExistFuncLock - 加锁版本
+### GetOrSetFuncLock - 加锁获取或设置
 
-这个方法会确保同一时刻只有一个 goroutine 执行加载函数，其他 goroutine 会等待结果：
+需要直接取得缓存值并避免并发重复加载时，使用 `GetOrSetFuncLock`：
 
 ```go
-value, err := cache.SetIfNotExistFuncLock(ctx, "user:123",
+value, err := cache.GetOrSetFuncLock(ctx, "user:123",
     func(ctx context.Context) (interface{}, error) {
         // 从数据库加载数据
         return db.GetUser(ctx, 123)
@@ -216,8 +218,10 @@ value, err := cache.SetIfNotExistFuncLock(ctx, "user:123",
 **工作原理**：
 1. 第一个请求发现缓存不存在，获取锁并执行加载函数
 2. 后续并发请求会等待第一个请求完成
-3. 第一个请求完成后，所有请求都能获得结果
+3. 第一个请求完成后，其他请求读取并返回同一个缓存结果
 4. 只有一次数据库查询，避免了缓存击穿
+
+`SetIfNotExistFuncLock` 的返回值仍然只是 `created bool`。内存与 Redis 适配器都保证加载函数在锁内执行；Redis 适配器在锁已被其他实例持有时会直接返回 `false`，不会返回对方计算出的值。
 
 ### 与 `singleflight` 的配合使用
 
@@ -235,7 +239,7 @@ var sf singleflight.Group
 value, err, _ := sf.Do("user:123", func() (any, error) {
     // 1. 先尝试从缓存获取
     cached, err := cache.Get(ctx, "user:123")
-    if err == nil && !cached.IsNil() {
+    if err == nil && cached != nil {
         return cached.Interface(), nil
     }
 

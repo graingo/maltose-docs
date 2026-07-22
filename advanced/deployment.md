@@ -21,7 +21,7 @@
 # --- 构建阶段 ---
 # 使用官方的 Go 镜像作为构建环境
 # 选择一个具体的版本以保证构建的可复现性
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # 设置工作目录
 WORKDIR /app
@@ -245,7 +245,7 @@ docker-compose down -v
 更新 Dockerfile，添加健康检查支持：
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./

@@ -51,25 +51,25 @@ database:
 
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `type` | string | `mysql` | 数据库类型：`mysql`, `pgsql`, `sqlite` |
-| `host` | string | `127.0.0.1` | 数据库主机地址 |
+| `type` | string | `mysql` | 数据库类型：`mysql`, `postgres`, `sqlite` |
+| `host` | string | 空 | 数据库主机地址 |
 | `port` | string | `3306` | 数据库端口 |
-| `user` | string | `root` | 数据库用户名 |
+| `user` | string | 空 | 数据库用户名 |
 | `password` | string | - | 数据库密码 |
 | `db_name` | string | - | 数据库名称 |
 | `dsn` | string | - | 数据库连接字符串（DSN）。如果提供，将优先使用，其他连接参数将被忽略 |
 | `max_idle_connection` | int | `10` | 最大空闲连接数 |
 | `max_open_connection` | int | `100` | 最大打开连接数 |
-| `max_idle_time` | duration | `30m` | 连接最大空闲时间，超过后连接会被关闭 |
-| `max_lifetime` | duration | `1h` | 连接最大生存时间，超过后连接会被关闭并重建 |
-| `slow_threshold` | duration | `200ms` | 慢查询阈值，超过该值的 SQL 会被记录为 Warn 级别日志 |
+| `max_idle_time` | duration | `10s` | 连接最大空闲时间，超过后连接会被关闭 |
+| `max_lifetime` | duration | `0s` | 连接最大生存时间；`0` 表示不按连接年龄关闭 |
+| `slow_threshold` | duration | `300ms` | 慢查询阈值，超过该值的 SQL 会被记录为 Warn 级别日志 |
 | `replicas` | array | `[]` | 只读副本列表，用于读写分离（见下文） |
-| `plugins` | array | `[]` | GORM 插件列表，默认已包含 OpenTelemetry 插件 |
 | `logger` | object | - | 独立的日志配置（可选，无则使用全局日志配置） |
 
 **配置说明**：
 
 - **DSN vs 分散参数**：您可以选择直接提供 `dsn` 连接字符串，或提供 `host`、`port`、`user` 等分散参数。如果提供了 `dsn`，框架会优先使用它。
+- **GORM 插件**：默认启用 OpenTelemetry GORM 插件；其他插件通过 Go 代码调用 `Config.AddPlugin` 注册，不通过 YAML 配置。
 - **连接池调优**：
   - `max_open_connection` 控制同时活跃的最大连接数，建议根据应用负载和数据库服务器性能调整
   - `max_idle_connection` 通常设置为 `max_open_connection` 的 10-20%
@@ -121,7 +121,7 @@ db := m.DB()
 
 // 检查数据库连接
 if err := db.Ping(ctx); err != nil {
-    mlog.Error(ctx, "数据库连接异常", "error", err)
+    mlog.Errorw(ctx, err, "数据库连接异常", mlog.Err(err))
     // 可以触发告警或重试逻辑
 }
 ```
@@ -173,15 +173,25 @@ database:
 
     # 只读副本库列表
     replicas:
-      - host: "192.168.1.2"
+      - type: "mysql"
+        host: "192.168.1.2"
+        port: "3306"
         user: "readonly_user"
-        # ... 其他副本库配置，会继承主库配置 ...
-      - host: "192.168.1.3"
+        password: "your_password"
+        db_name: "my_database"
+      - type: "mysql"
+        host: "192.168.1.3"
+        port: "3306"
         user: "readonly_user"
-        # ... 其他副本库配置 ...
+        password: "your_password"
+        db_name: "my_database"
 ```
 
 完成以上配置后，无需修改任何代码，`mdb` 将自动实现读写请求的分发。
+
+:::warning 副本配置不会继承主库
+每个 `replicas` 条目都会独立创建数据库驱动，必须填写 `type` 以及该副本连接所需的全部字段；也可以为每个副本直接提供完整 `dsn`。
+:::
 
 ## 事务操作
 
@@ -218,7 +228,7 @@ import "database/sql"
 err := db.TransactWithOptions(ctx, &sql.TxOptions{
     Isolation: sql.LevelRepeatableRead,
     ReadOnly:  false,
-}, func(ctx context.Context, tx *mdb.DB) error {
+}, func(tx *mdb.DB) error {
     // 事务逻辑
     if err := tx.Create(&User{Name: "user1"}).Error; err != nil {
         return err

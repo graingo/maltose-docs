@@ -13,40 +13,37 @@
 
 ### 示例：测试用户注册逻辑
 
-假设我们有如下的用户注册逻辑：
+`maltose gen dao` 生成的是数据库访问结构体，不会自动生成可 mock 的 DAO 接口。为了隔离数据库，应在应用层定义所需的最小接口，并通过构造函数注入：
 
 ```go
 // file: internal/logic/user/user.go
 package user
 
-// ... imports ...
-
-type sUser struct{}
-
-func New() *sUser { return &sUser{} }
-func init() { service.RegisterUser(New()) }
-
-// Register 是 IUser 接口的实现
-func (s *sUser) Register(ctx context.Context, req *v1.UserRegisterReq) (*v1.UserRegisterRes, error) {
-    // 1. 检查用户名是否已存在
-    // 这里依赖了 DAO 层
-    isExist, err := dao.User.Ctx(ctx).IsUsernameExist(req.Username)
-    if err != nil {
-        return nil, err
-    }
-    if isExist {
-        return nil, merror.New("用户名已存在")
-    }
-
-    // 2. 创建用户
-    // ... 创建用户的逻辑 ...
-
-    return &v1.UserRegisterRes{UserID: 1}, nil
+type Repository interface {
+	IsUsernameExist(ctx context.Context, username string) (bool, error)
 }
 
-要测试 `Register` 方法，我们不希望它真的去连接数据库。由于 Maltose 提倡面向接口编程，我们可以利用 mock 技术（如 [gomock](https://github.com/golang/mock)）来模拟 DAO 层的行为。
+type User struct {
+	repo Repository
+}
 
-为了实现这一点，DAO 层需要被设计为可替换的。一个常见的实践是导出一个包级别的变量（例如 `dao.User`），并在测试代码中用 mock 实例覆盖它。如下面的测试代码所示，我们通过 `dao.User = mockUserDao` 实现了依赖注入，这使得我们可以在不触及真实数据库的情况下，精确地测试业务逻辑在不同情况下的行为。
+func New(repo Repository) *User {
+	return &User{repo: repo}
+}
+
+func (s *User) Register(ctx context.Context, username string) error {
+	exists, err := s.repo.IsUsernameExist(ctx, username)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return merror.New("用户名已存在")
+	}
+	return nil
+}
+```
+
+随后可以使用 [gomock](https://github.com/uber-go/mock) 为这个应用层接口生成 mock。
 
 #### 1. 安装 mockgen
 
@@ -58,29 +55,13 @@ go install go.uber.org/mock/mockgen@latest
 
 #### 2. 定义接口和生成 Mock
 
-确保你的 DAO 层操作是通过接口定义的（这在 `maltose gen dao` 中会自动生成）。然后使用 `mockgen` 工具生成 mock 文件。
-
-**方式 1：从源文件生成**
+为上面定义的 `Repository` 接口生成 mock：
 
 ```bash
-# 为 service 接口生成 mock
-mockgen -source=internal/service/user.go \
-    -destination=internal/service/mock/user_mock.go \
+mockgen -source=internal/logic/user/user.go \
+    -destination=internal/logic/user/mock/repository.go \
     -package=mock
 ```
-
-**方式 2：使用反射模式**
-
-```bash
-# 为 DAO 接口生成 mock
-mockgen -destination=internal/dao/mock/user_dao_mock.go \
-    -package=mock \
-    github.com/yourproject/internal/dao IUserDao
-```
-
-**生成的 Mock 文件示例**：
-
-生成后会在 `internal/service/mock/` 目录下创建 `user_mock.go` 文件，包含所有接口方法的 Mock 实现。
 
 #### 3. 编写测试用例
 
@@ -89,46 +70,21 @@ mockgen -destination=internal/dao/mock/user_dao_mock.go \
 package user_test
 
 import (
-    // ... imports ...
-    "testing"
-    "github.com/golang/mock/gomock"
-    "github.com/stretchr/testify/assert"
-    // ... import mock_dao ...
+	"context"
+	"testing"
+
+	"go.uber.org/mock/gomock"
+	"github.com/stretchr/testify/require"
 )
 
 func TestUser_Register(t *testing.T) {
-    // 1. 初始化 gomock 控制器
-    ctrl := gomock.NewController(t)
-    defer ctrl.Finish()
+	ctrl := gomock.NewController(t)
+	repo := mock.NewMockRepository(ctrl)
+	repo.EXPECT().IsUsernameExist(gomock.Any(), "existing_user").Return(true, nil)
 
-    // 2. 创建 mock 实例
-    // mockUserDao 是 mockgen 生成的
-    mockUserDao := mock_dao.NewMockIUser(ctrl)
-
-    // 3. "打桩"：定义 mock 对象的行为
-    // 当调用 IsUsernameExist 方法并传入 "existing_user" 时，
-    // 我们期望它返回 true 和 nil 错误。
-    mockUserDao.EXPECT().IsUsernameExist(gomock.Any(), "existing_user").Return(true, nil)
-
-    // 当传入 "new_user" 时，返回 false 和 nil 错误。
-    mockUserDao.EXPECT().IsUsernameExist(gomock.Any(), "new_user").Return(false, nil)
-
-    // 4. 将 mock 对象注入到我们的测试目标中
-    // 这里我们通过 `internal/dao` 包的 Set 方法（需要自行实现）来替换掉真实的 DAO
-    dao.User = mockUserDao
-
-    // 5. 执行测试
-    s := user.New() // 获取我们的业务逻辑实例
-
-    // Case 1: 用户名已存在
-    _, err := s.Register(context.Background(), &v1.UserRegisterReq{Username: "existing_user"})
-    assert.NotNil(t, err) // 断言应该返回错误
-    assert.Equal(t, "用户名已存在", err.Error())
-
-    // Case 2: 注册成功
-    res, err := s.Register(context.Background(), &v1.UserRegisterReq{Username: "new_user"})
-    assert.Nil(t, err) // 断言不应该有错误
-    assert.Equal(t, uint(1), res.UserID) // 断言返回的用户 ID 正确
+	logic := user.New(repo)
+	err := logic.Register(context.Background(), "existing_user")
+	require.EqualError(t, err, "用户名已存在")
 }
 ```
 
@@ -196,7 +152,7 @@ func TestValidateEmail(t *testing.T) {
 
 ## 接口测试
 
-接口测试用于验证从 HTTP 请求到响应的整个流程是否正确。Go 的标准库 `net/http/httptest` 使得这类测试非常方便。
+接口测试用于验证从 HTTP 请求到响应的整个流程是否正确。当前 `mhttp.Server` 不直接暴露 `http.Handler`，因此应启动一个测试服务器，再用标准 `http.Client` 发起请求。
 
 ### 示例：测试登录接口
 
@@ -205,46 +161,44 @@ func TestValidateEmail(t *testing.T) {
 package user_test
 
 import (
-    "net/http"
-    "net/http/httptest"
-    "strings"
-    "testing"
-    "github.com/graingo/maltose/net/mhttp"
-    "github.com/stretchr/testify/assert"
-    // ... import your route and controller ...
+	"context"
+	"net/http"
+	"testing"
+	"time"
+
+	"github.com/graingo/maltose/net/mhttp"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoginAPI(t *testing.T) {
-    // 1. 初始化一个 mhttp 服务器
-    s := mhttp.New()
+	s := mhttp.New()
+	s.SetAddress("127.0.0.1:18080")
+	s.GET("/login", func(r *mhttp.Request) {
+		r.JSON(http.StatusOK, map[string]any{"token": "test-token"})
+	})
 
-    // 2. 注册你的路由
-    // 假设你的所有路由都在一个 Register 函数中
-    route.Register(s)
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.Start(context.Background()) }()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		require.NoError(t, s.Stop(ctx))
+		require.NoError(t, <-errCh)
+	})
 
-    // 3. 准备一个 HTTP 请求
-    // 模拟一个 POST 请求，请求体为 JSON
-    reqBody := `{"username":"test","password":"123"}`
-    req := httptest.NewRequest("POST", "/login", strings.NewReader(reqBody))
-    req.Header.Set("Content-Type", "application/json")
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		var err error
+		resp, err = http.Get("http://127.0.0.1:18080/login")
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
+	defer resp.Body.Close()
 
-    // 4. 创建一个 ResponseRecorder 来捕获响应
-    w := httptest.NewRecorder()
-
-    // 5. 让服务器处理这个请求
-    s.ServeHTTP(w, req)
-
-    // 6. 断言结果
-    // 断言 HTTP 状态码是否为 200 OK
-    assert.Equal(t, http.StatusOK, w.Code)
-
-    // 断言响应体是否包含预期的 token
-    // 注意：在真实测试中，您可能需要更复杂的 JSON 解析和断言
-    assert.Contains(t, w.Body.String(), "token")
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 ```
 
-这个测试启动了一个完整的内存服务器，发送一个真实的 HTTP 请求，并检查响应的状态码和内容，从而有效地验证了从路由、参数绑定、控制器逻辑到最终响应的整个链路。
+这个测试启动真实的本地 HTTP 监听并在结束时优雅关闭。测试套件较大时，应为每个测试分配不冲突的端口，或将服务启动封装为统一的测试辅助函数。
 
 ## 集成测试
 

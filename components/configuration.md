@@ -83,20 +83,17 @@ port := cfg.GetInt(ctx, "server.port") // 9000
 // 获取布尔值
 debug := cfg.GetBool(ctx, "server.debug") // true/false
 
-// 获取浮点数
-ratio := cfg.GetFloat64(ctx, "server.ratio") // 0.5
+// 获取 map
+database := cfg.GetMap(ctx, "database")
 
-// 获取时间长度
-timeout := cfg.GetDuration(ctx, "server.timeout") // 30s
-
-// 获取字符串数组
-hosts := cfg.GetStringSlice(ctx, "server.allowed_hosts") // []string{"localhost", "127.0.0.1"}
+// 获取切片（元素类型为 any）
+hosts := cfg.GetSlice(ctx, "server.allowed_hosts")
 ```
 
 **优点**：
 - 类型安全，直接返回 Go 原生类型
 - 代码更简洁，无需手动类型转换
-- 如果配置项不存在或类型不匹配，返回该类型的零值
+- 配置项不存在时返回该类型的零值；底层读取或转换失败时，便捷方法会触发 panic
 
 ### 配置结构体映射
 
@@ -210,8 +207,8 @@ Maltose 在 `contrib/config` 中已经提供了一些常用的配置中心适配
 
 ```go
 // 清除配置缓存
-// 注意：这会触发适配器重新加载配置
-cfg.ClearCache()
+// 下次读取时会重新执行适配器读取和已注册的加载钩子
+cfg.ClearCache(ctx)
 ```
 
 **使用场景**：
@@ -220,9 +217,9 @@ cfg.ClearCache()
 - 需要强制刷新配置
 
 **注意事项**：
-- 默认的文件适配器不使用缓存，调用此方法无效果
+- `ClearCache` 清除的是 `Config` 对处理后数据的缓存，不会让文件适配器自动重新读取磁盘文件；文件内容变化后需重新调用 `AdapterFile.SetFile`
 - 生产环境不建议频繁调用，可能影响性能
-- 如果使用远程配置中心，清除缓存会触发网络请求
+- 是否会触发远程请求取决于适配器自身的缓存策略
 
 ## 配置加载钩子 (Hooks)
 
