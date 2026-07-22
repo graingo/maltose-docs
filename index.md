@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: MALTOSE
-  text: 轻量级企业级Go开发框架
-  tagline: 基于Gin打造，简单而强大
+  text: 轻量级企业级 Go 开发框架
+  tagline: 基于 Gin，提供配置驱动、代码生成与可观测性集成
   actions:
     - theme: brand
       text: 快速开始
@@ -20,7 +20,7 @@ features:
     details: 遵循 Go-Frame 的工程化思想，提供规范的项目结构和强大的命令行工具，提升开发与协作效率。
   - icon: "🔭"
     title: 开箱即用的可观测性
-    details: 深度集成 OpenTelemetry，自动为 HTTP 请求、数据库操作注入链路追踪与指标监控，无需额外配置。
+    details: 集成 OpenTelemetry；初始化 Provider 后，可自动采集 HTTP、数据库和 Redis 的链路与指标。
   - icon: "📦"
     title: 组件化设计
     details: 提供配置、日志、数据库等高内聚、低耦合的核心组件，可按需使用或轻松替换。

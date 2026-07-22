@@ -7,7 +7,7 @@
 1. 安装依赖
 
 ```bash
-npm install
+npm ci
 ```
 
 2. 启动开发服务器
@@ -26,11 +26,23 @@ npm run docs:build
 
 - `.vitepress/`: VitePress 配置
 - `public/`: 静态资源
-- 根目录下的 Markdown 文件: 主要文档内容
+- `guide/`: 入门与核心概念
+- `components/`: 组件手册
+- `advanced/`: 测试、错误处理、部署等进阶主题
+- `cli/`: CLI 总览与命令参考
+- `faq/`: 高频排错与设计说明
+
+文档的信息架构、事实来源和示例规范见 [DESIGN.md](./DESIGN.md)。
 
 ## 贡献指南
 
-欢迎提交 PR 来完善文档。
+欢迎提交 PR 来完善文档。提交前至少运行：
+
+```bash
+npm run docs:build
+```
+
+示例应以当前 `maltose`、`mconv` 和 quickstart 实现为准；不要记录尚未公开的规划 API。
 
 ## 开源许可
 

@@ -2,6 +2,10 @@
 
 本文给出当前公开 API 对应的一份可落地配置示例。为了减少歧义，这里统一使用嵌套实例形式，例如 `server.default`、`database.default`、`redis.default`。
 
+:::tip 使用方式
+这是一份字段参考，不建议原样复制到所有环境。先保留实际使用的组件和字段，再由 Secret、配置中心或部署系统注入敏感值。
+:::
+
 ## `config.yaml`
 
 ```yaml

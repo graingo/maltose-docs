@@ -1,90 +1,71 @@
-# 命令行工具 (maltose)
+# Maltose CLI
 
-Maltose 框架配备了一个功能强大的命令行工具 `maltose`，旨在提高您的开发效率。它能帮助您快速创建新项目、生成常用代码（如 Model、DAO、Service、Controller）等。
+`maltose` 用于创建项目，以及从数据库或 Go 契约生成重复代码。生成器负责骨架，不替代业务实现。
 
 ## 安装
 
-我们推荐使用 `go install` 来安装 `maltose` 命令行工具，以确保您使用的是最新版本。
+CLI 需要 Go 1.23 或更高版本：
 
 ```bash
 go install github.com/graingo/maltose/cmd/maltose@latest
-```
-
-安装成功后，`maltose` 命令将注册到您的 `GOPATH` 下。您可以通过以下命令验证安装是否成功：
-
-```bash
 maltose --version
 ```
 
-## 开发流程概览
+确保 `$(go env GOPATH)/bin` 已加入 `PATH`。
 
-Maltose CLI 工具的设计遵循了典型的 Web 应用开发流程。以下是推荐的使用顺序：
+## 命令速查
 
-1. **项目初始化**: `maltose new` - 创建新项目
-2. **数据层生成**: `maltose gen model` → `maltose gen dao` - 从数据库生成数据访问层
-3. **API 层生成**: `maltose gen service` → `maltose gen logic` - 从 API 定义生成业务逻辑层
-4. **文档生成**: `maltose gen openapi` - 生成 API 文档
+| 命令 | 输入 | 主要输出 |
+| --- | --- | --- |
+| `maltose new` | quickstart Git 模板 | 新项目目录 |
+| `maltose gen model` | 数据库 `.env` | `internal/model` |
+| `maltose gen dao` | 数据库 `.env` | `internal/dao` |
+| `maltose gen service` | `api` 中的 `*Req`/`*Res` | Controller、Service |
+| `maltose gen logic` | Service 接口 | Logic 实现骨架 |
+| `maltose gen openapi` | 嵌入 `m.Meta` 的 API 定义 | OpenAPI YAML/JSON |
 
-:::tip 命令详解
-关于每个命令的详细用法、参数和最佳实践，请参阅 [**命令参考手册**](./commands.md)。
-:::
+所有参数见[命令参考](./commands)。
 
-## 典型开发工作流
+## 推荐工作流
 
-以下是一个典型的 Maltose 项目开发流程：
-
-### 1. 新项目开始
+### 创建项目
 
 ```bash
-# 创建新项目
-maltose new my-project
+maltose new my-project --module github.com/acme/my-project
 cd my-project
+```
 
-# 配置数据库连接（编辑 .env 文件）
-# 然后生成数据层代码
+当前 `new` 只更新 `go.mod`，不会同步改写模板 Go 文件中的 import path。生成后需将 `github.com/graingo/maltose-quickstart` 全局替换为新 module path。
+
+### 数据库驱动开发
+
+```bash
+# 先在项目根目录准备 .env
 maltose gen model
 maltose gen dao
 ```
 
-### 2. API 开发
+生成命令读取 `.env`；应用运行时读取 `mcfg`，两套配置需要保持一致。
+
+### 契约驱动开发
+
+1. 在 `api/<module>/<version>/` 定义 `*Req`、`*Res` 和 `m.Meta`。
+2. 生成 Controller 与 Service。
+3. 生成 Logic 骨架。
+4. 完成所有 `TODO`/`implement me`。
+5. 生成 OpenAPI，并运行测试。
 
 ```bash
-# 定义 API 结构体（在 api/ 目录下）
-# 然后生成服务层代码
 maltose gen service
 maltose gen logic
-```
-
-### 3. 文档生成
-
-```bash
-# 生成 API 文档
 maltose gen openapi
+go test ./...
 ```
 
-### 4. 迭代开发
+## 生成代码的边界
 
-```bash
-# 当数据库表结构变化时
-maltose gen model
-maltose gen dao
-
-# 当 API 接口变化时
-maltose gen service
-maltose gen logic
-
-# 更新文档
-maltose gen openapi
-```
-
-## 注意事项
-
-1. **代码安全性**: 生成的代码会智能地处理已存在的文件，通常采用追加模式而非覆盖模式，保护您的手动修改。
-
-2. **命名约定**: 框架依赖特定的命名约定工作，如 `*Req`/`*Res` 结构体、`I*` 接口等，请遵循这些约定。
-
-3. **文件组织**: 生成的文件会按照 Maltose 推荐的目录结构组织，建议不要随意移动这些文件。
-
-4. **版本控制**: 建议将生成的代码纳入版本控制，便于团队协作和代码审查。
-
-通过合理使用这些命令行工具，您可以显著提高开发效率，将更多时间投入到业务逻辑的实现上。
+- 生成前提交或暂存现有改动，便于审查差异。
+- `internal/dao/internal` 属于生成实现，不要直接维护业务逻辑。
+- Controller 和 Logic 骨架仍需要人工实现。
+- 数据库或 API 契约变化后重新生成，并检查是否出现重复或不兼容签名。
+- 将生成代码纳入版本控制，避免不同开发环境产生漂移。

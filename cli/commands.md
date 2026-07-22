@@ -1,6 +1,21 @@
 # 命令参考
 
-本页详细介绍了 `maltose` 命令行工具的所有可用命令及其标志。
+本页介绍 `maltose` 的公开命令、输入来源和生成边界。推荐工作流见 [CLI 总览](./)。
+
+## 快速参考
+
+| 命令 | 主要输入 | 默认输出 | 是否连接数据库 |
+| --- | --- | --- | --- |
+| `maltose new` | Git 模板 | `[project-name]/` | 否 |
+| `maltose gen model` | `.env` | `internal/model` | 是 |
+| `maltose gen dao` | `.env` | `internal/dao` | 是 |
+| `maltose gen service` | `api/` | `internal/controller`、`internal/service` | 否 |
+| `maltose gen logic` | `internal/service` | `internal/logic` | 否 |
+| `maltose gen openapi` | `api/` 中的 `m.Meta` | `openapi.yaml` | 否 |
+
+:::warning 生成前检查差异
+生成器会创建或更新代码。执行前先提交或暂存现有改动，执行后运行 `gofmt`、测试并审查 diff。
+:::
 
 ## 命令详解
 

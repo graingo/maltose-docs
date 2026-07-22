@@ -1,389 +1,248 @@
-# 常见问题 (FAQ)
+# 常见问题
 
-### Q: Maltose 和 Go-Frame (GF) 是什么关系？
+本页优先回答会阻塞开发的实际问题。组件的完整 API 和配置项请查阅[手册](../components/)，架构选择请参阅[设计哲学](./design-philosophy)。
 
-**A:** Maltose 在设计哲学和分层思想上深度参考了 [Go-Frame](https://goframe.org)，特别是其工程化的目录结构、模块化的组件设计以及面向接口的开发模式。然而，Maltose 并非 GF 的封装或分支。Maltose 在底层技术选型上更为轻量，例如 Web 框架基于 Gin（而非 GF 自研的 ghttp），ORM 基于 GORM（而非 GF 的 gorm），日志组件则基于 Zap 做了结构化封装。
+## 快速定位
 
-您可以将 Maltose 看作是 "GF 的设计思想" + "Gin 生态" 的一个实践，旨在提供一个同样强大但更易于上手和定制的开发框架。
+| 现象 | 先看这里 |
+| --- | --- |
+| 新项目无法编译、提示不能导入 `internal` 包 | [生成项目的 import path 没有更新](#为什么-maltose-new-生成的项目无法导入-internal-包) |
+| 启动后请求直接 panic | [模板仍有 `implement me`](#为什么-quickstart-启动后请求会-panic) |
+| 配置没有生效 | [配置文件加载规则](#为什么配置文件没有生效) |
+| `m.DB()` 或 `m.Redis()` 初始化失败 | [检查实例配置](#为什么-mdb-或-mredis-初始化失败) |
+| 错误响应状态码与预期不同 | [标准响应规则](#错误响应会返回-200-吗) |
+| Trace、Metric 没有上报 | [显式初始化 exporter](#为什么写了-trace-或-metric-配置却没有数据) |
+| SQL 或 Redis 操作变慢 | [数据访问排查](#如何排查慢-sql) |
 
-### Q: Maltose 和 Gin 是什么关系？
+## 启动与配置
 
-**A:** Maltose 的 Web 服务核心 (`mhttp`) 是基于 [Gin](https://github.com/gin-gonic/gin) 构建的。我们没有重新发明轮子，而是选择站在巨人的肩膀上，继承了 Gin 的高性能 Radix 树路由和广泛的中间件生态。
+### 为什么 `maltose new` 生成的项目无法导入 `internal` 包？
 
-在 Gin 的基础上，Maltose 提供了更高级别的抽象和封装，例如：
+当前 CLI 会更新 `go.mod` 的 module path，但不会同步改写模板 Go 文件中的 `github.com/graingo/maltose-quickstart` import。Go 会因此把这些 import 当作另一个 module，并触发 `internal` 包访问限制。
 
-- 结构化的配置驱动服务器。
-- 与 `mlog`, `mtrace`, `mmetric` 等可观测性组件的深度集成。
-- 标准化的路由注册、分组和控制器绑定流程。
-- 统一的请求/响应模型和错误处理机制。
+生成项目后，在 IDE 中将模板原 module 前缀全局替换为 `go.mod` 第一行声明的 module path，然后执行：
 
-### Q: 如何在 Maltose 中使用 WebSocket？
+```bash
+go mod tidy
+go test ./...
+```
 
-**A:** 由于 `mhttp` 基于 Gin，您可以直接使用社区中成熟的 Gin WebSocket 中间件或库。一个常见的做法是，在 Controller 中，将 HTTP 请求升级（Upgrade）为 WebSocket 连接，然后进行后续处理。
+### 为什么 quickstart 启动后请求会 panic？
+
+quickstart 是项目骨架，生成的 Controller 方法可能仍包含：
 
 ```go
-import (
-    "github.com/gorilla/websocket"
-    "github.com/graingo/maltose/net/mhttp"
-)
-
-var upgrader = websocket.Upgrader{
-    // ... 配置，例如 CheckOrigin
-}
-
-func WsHandler(r *mhttp.Request) {
-    // 将 HTTP 连接升级为 WebSocket 连接
-    conn, err := upgrader.Upgrade(r.Writer, r.Request, nil)
-    if err != nil {
-        // 处理错误
-        return
-    }
-    defer conn.Close()
-
-    // 开始 WebSocket 的读写循环
-    for {
-        mt, message, err := conn.ReadMessage()
-        if err != nil {
-            // 处理读错误，通常意味着连接已关闭
-            break
-        }
-
-        // ... 处理收到的消息 ...
-
-        // 将消息写回客户端
-        err = conn.WriteMessage(mt, message)
-        if err != nil {
-            // 处理写错误
-            break
-        }
-    }
-}
+panic("implement me")
 ```
 
-### Q: 如何自定义框架的错误响应格式？
+请求接口前先完成对应 Controller。可直接跟随[快速上手](../guide/getting-started)实现 `Hello` 示例。
 
-**A:** 框架默认的响应格式是由 `mhttp.MiddlewareResponse()` 中间件控制的。如果您想完全替换它，可以不要挂载这个中间件，再编写自己的响应处理中间件。
+### 为什么配置文件没有生效？
 
-您的自定义中间件可以：
+按以下顺序检查：
 
-1.  调用 `r.Next()` 执行业务逻辑。
-2.  检查 `r.Writer.Written()`，避免重复写响应。
-3.  检查 `r.Errors` 是否有错误。
-4.  使用 `r.JSON(...)` 输出您自己的响应结构。
+1. 默认实例会在常用配置目录中查找 `config.yaml`、`config.yml`、`config.json` 或 `config.toml`。
+2. 具名配置 `m.Config("redis")` 会优先查找对应的 `redis.*` 文件。
+3. 文件适配器不会展开 `${DB_HOST:default}` 之类的环境变量表达式。
+4. 自定义 Adapter 必须在 `m.Server()`、`m.DB()`、`m.Redis()` 等组件首次读取配置前设置。
+
+显式选择配置文件的方式：
 
 ```go
-func CustomResponseMiddleware() mhttp.MiddlewareFunc {
-    return func(r *mhttp.Request) {
-        r.Next()
-
-        if r.Writer.Written() {
-            return
-        }
-
-        if len(r.Errors) > 0 {
-            err := r.Errors.Last().Err
-            code := merror.Code(err)
-
-            r.JSON(http.StatusInternalServerError, map[string]any{
-                "success": false,
-                "code":    code.Code(),
-                "message": err.Error(),
-            })
-            return
-        }
-
-        r.JSON(http.StatusOK, map[string]any{
-            "success": true,
-            "data":    r.GetHandlerResponse(),
-        })
-    }
+adapter, err := mcfg.NewAdapterFile()
+if err != nil {
+	panic(err)
 }
+if err := adapter.SetFile(os.Getenv("APP_CONFIG")); err != nil {
+	panic(err)
+}
+m.Config().SetAdapter(adapter)
 ```
 
-### Q: 我该如何为一个 Logic/Service 编写单元测试？
+```bash
+APP_CONFIG=config/config.prod.yaml go run .
+```
 
-**A:** 请参考我们的 [测试指南](../advanced/testing.md#单元测试)，其中详细介绍了如何利用 Mock 技术（如 `gomock`）来解耦依赖，从而对业务逻辑进行独立的单元测试。
+默认文件适配器不监听磁盘变化。远程适配器是否能实时看到更新，取决于其监听和缓存策略。完整说明见[配置管理](../components/configuration)。
 
-### Q: 数据库连接池应该如何配置？连接数设置多少合适？
+### 为什么 `m.DB()` 或 `m.Redis()` 初始化失败？
 
-**A:** 连接池配置取决于您的应用负载和数据库服务器性能。以下是一些经验法则：
+`m.DB()` 和 `m.Redis()` 是配置驱动的应用实例。首次调用时如果找不到配置或连接失败，会直接暴露初始化错误。
 
-**基本配置**:
+默认实例可以使用扁平结构：
+
 ```yaml
 database:
-  max_idle_connection: 10    # 空闲连接数
-  max_open_connection: 100   # 最大连接数
-  max_idle_time: "30m"       # 连接最大空闲时间
-  max_lifetime: "1h"         # 连接最大生存时间
+  type: mysql
+  host: 127.0.0.1
+  port: "3306"
+  user: root
+  password: secret
+  db_name: app
 ```
 
-**配置建议**:
-- **max_open_connection**: 根据公式 `(核心数 * 2) + 有效磁盘数` 估算。例如 4 核 CPU + 1 块磁盘 = 10 个连接。但实际要根据 QPS 和数据库性能调整。对于云数据库，不要超过其最大连接数限制。
-- **max_idle_connection**: 通常设置为 `max_open_connection` 的 25%-50%。太小会频繁创建连接，太大会占用资源。
-- **max_lifetime**: 建议设置为 1-2 小时，避免长时间持有连接导致数据库端资源泄漏。
-- **max_idle_time**: 建议设置为 30 分钟，及时释放空闲连接。
+也可以使用具名结构：
 
-**性能优化**:
-- 如果看到 "too many connections" 错误，降低 `max_open_connection` 或增加数据库最大连接数。
-- 如果连接创建频繁（查看 `database/sql` 的 `WaitCount` 指标），增加 `max_idle_connection`。
-- 使用 [read-write splitting](../components/database/mdb.md#读写分离) 分散读负载到从库。
-
-### Q: 如何排查慢查询？SlowThreshold 是什么作用？
-
-**A:** Maltose 的 `mdb` 组件会自动记录慢查询日志。
-
-**配置慢查询阈值**:
 ```yaml
 database:
-  slow_threshold: "500ms"  # 超过 500ms 的查询会被记录
-```
-
-**慢查询日志示例**:
-```
-WARN  [2025-11-03 14:23:45] Slow SQL Query
-  duration: 1.234s
-  rows: 1523
-  sql: SELECT * FROM users WHERE created_at > ? ORDER BY id DESC
-```
-
-**排查步骤**:
-1. **启用慢查询日志**: 确保 `database.logger.level` 设置为 `info` 或 `debug`。
-2. **分析日志**: 查看 `duration` 和 `sql` 字段，找出耗时操作。
-3. **优化查询**:
-   - 添加索引: `CREATE INDEX idx_created_at ON users(created_at)`
-   - 限制返回字段: `SELECT id, name FROM users` 而不是 `SELECT *`
-   - 添加分页: `LIMIT 100 OFFSET 0`
-   - 使用 `EXPLAIN` 分析查询计划
-4. **动态调整阈值**: 在开发环境可以设置更小的值（如 `100ms`）来发现潜在问题。
-
-**性能监控**:
-- 配合 `mtrace` 查看查询在整个请求链路中的耗时占比。
-- 使用 `database/sql` 的内置指标监控连接池状态。
-
-### Q: Redis 慢命令如何监控和优化？
-
-**A:** 与数据库类似，`mredis` 也会自动记录慢命令。
-
-**配置慢命令阈值**:
-```yaml
-redis:
   default:
-    slow_threshold: "20ms"  # 超过 20ms 的命令会被记录
+    type: mysql
+    dsn: root:secret@tcp(127.0.0.1:3306)/app?parseTime=true
 ```
 
-**动态调整阈值**:
+确认配置后，再检查网络、账号权限和数据库是否可用。数据库生成命令读取 `.env`，应用运行时读取 `mcfg`，两者是不同配置源。
+
+## HTTP 与响应
+
+### 错误响应会返回 `200` 吗？
+
+启用 `mhttp.MiddlewareResponse()` 后，框架会同时返回业务码和对应的 HTTP 状态码：
+
+| 业务错误 | HTTP 状态码 |
+| --- | ---: |
+| 参数校验失败 | `400` |
+| 未认证 | `401` |
+| 无权限 | `403` |
+| 未找到 | `404` |
+| 其他内部错误 | `500` |
+
+成功响应使用 `200`。详见[标准响应](../components/server/standard-response)和[错误处理](../advanced/error-handling)。
+
+### 如何自定义响应格式？
+
+不要挂载 `MiddlewareResponse()`，改为注册自己的响应中间件。自定义中间件应在 `r.Next()` 后检查响应是否已经写出，再处理错误或 Controller 返回值：
+
 ```go
-// 在运行时调整慢命令阈值
-m.Redis().SetSlowThreshold(10 * time.Millisecond)
+func CustomResponse() mhttp.MiddlewareFunc {
+	return func(r *mhttp.Request) {
+		r.Next()
+		if r.Writer.Written() {
+			return
+		}
+		if len(r.Errors) > 0 {
+			err := r.Errors.Last().Err
+			r.JSON(http.StatusInternalServerError, map[string]any{
+				"success": false,
+				"message": err.Error(),
+			})
+			return
+		}
+		r.JSON(http.StatusOK, map[string]any{
+			"success": true,
+			"data":    r.GetHandlerResponse(),
+		})
+	}
+}
 ```
 
-**常见慢命令及优化**:
-1. **KEYS 命令**: 永远不要在生产环境使用 `KEYS *`，它会阻塞 Redis。改用 `SCAN` 命令。
-   ```go
-   // ❌ 错误: 会阻塞 Redis
-   keys, _ := m.Redis().Keys(ctx, "*user*")
+`mhttp.Server` 仍有一个始终启用的基础响应兜底；只要自定义中间件已经写出响应，基础兜底就会跳过。
 
-   // ✅ 正确: 使用 SCAN
-   client := m.Redis().Client()
-   iter := client.Scan(ctx, 0, "*user*", 100).Iterator()
-   for iter.Next(ctx) {
-       key := iter.Val()
-       // 处理 key
-   }
-   ```
+### 是否支持 WebSocket？
 
-2. **大 Key 操作**: 避免存储超过 1MB 的值。如果是集合类型（List, Set, Hash），元素数不要超过 10000。
+支持。`mhttp.Request` 内嵌 Gin Context，可将 `r.Writer` 和 `r.Request` 交给 `gorilla/websocket` 等库完成 Upgrade。框架不提供单独的 WebSocket 协议封装，连接生命周期、并发写入和 Origin 校验由应用负责。
 
-3. **Pipeline 优化**: 批量操作时使用 Pipeline。
-   ```go
-   pipe := m.Redis().Client().Pipeline()
-   for i := 0; i < 100; i++ {
-       pipe.Set(ctx, fmt.Sprintf("key:%d", i), i, 0)
-   }
-   pipe.Exec(ctx)  // 一次性执行所有命令
-   ```
+## 数据库、Redis 与缓存
 
-4. **避免大范围查询**: `LRANGE`, `SMEMBERS`, `HGETALL` 等命令在数据量大时会很慢，使用分页或限制返回数量。
+### 数据库连接池应该设置多大？
 
-### Q: 生产环境如何优雅地管理配置？是否支持热更新？
+不存在适用于所有应用的固定公式。建议先确定数据库允许的总连接数，并为各服务实例预留连接预算，再结合 `database/sql.DBStats` 调整：
 
-**A:** Maltose 的 `mcfg` 支持多种配置管理方式。
-
-**推荐的生产配置实践**:
-
-1. **配置文件 + Secret/配置中心组合**：文件适配器不会自动展开 `${DB_HOST:default}` 一类表达式，不要把这种语法直接写进 `config.yaml`。可由 Kubernetes、部署脚本渲染完整配置文件，或通过 Nacos/Apollo 适配器及配置加载 Hook 合并敏感配置。
-
-2. **使用 Kubernetes ConfigMap 和 Secret**:
-   ```yaml
-   # ConfigMap for config.yaml
-   apiVersion: v1
-   kind: ConfigMap
-   metadata:
-     name: app-config
-   data:
-     config.yaml: |
-       server:
-         address: ":8080"
-   ---
-   # Secret for sensitive data
-   apiVersion: v1
-   kind: Secret
-   metadata:
-     name: app-secret
-   stringData:
-     DB_PASSWORD: your-secure-password
-   ```
-
-3. **配置热更新**:
-   默认文件适配器不监听磁盘变化，修改文件后通常需要重启服务。Nacos/Apollo 等远程适配器是否能实时看到更新，取决于适配器自身的监听与缓存策略。生产环境推荐：
-   - 使用 Kubernetes Rolling Update 无缝更新
-   - 对于特定配置项（如慢查询阈值），使用动态方法:
-     ```go
-     // 通过 API 动态调整（需要自行实现接口）
-     func UpdateSlowThreshold(threshold time.Duration) {
-         db := m.DB()
-         sqlDB, _ := db.DB()
-         // GORM 不直接支持，但可以通过重连实现
-     }
-
-     // Redis 支持动态调整
-     m.Redis().SetSlowThreshold(newThreshold)
-     ```
-
-4. **多环境配置**: Maltose 应用本身不会自动处理 `-c` 参数。应在任何组件首次读取配置前，显式选择文件：
-
-   ```go
-   adapter, err := mcfg.NewAdapterFile()
-   if err != nil {
-       panic(err)
-   }
-   if err := adapter.SetFile(os.Getenv("APP_CONFIG")); err != nil {
-       panic(err)
-   }
-   m.Config().SetAdapter(adapter)
-   ```
-
-   ```bash
-   APP_CONFIG=config/config.dev.yaml go run .
-   APP_CONFIG=config/config.prod.yaml go run .
-   ```
-
-### Q: 如何监控应用性能和排查问题？
-
-**A:** Maltose 提供了完整的可观测性方案。
-
-**1. 链路追踪 (mtrace)**:
-追踪请求在分布式系统中的完整路径。参考 [链路追踪文档](../components/observability/tracing/index.md)。
+- `WaitCount`、`WaitDuration` 持续增长：连接可能不足，或 SQL 本身过慢。
+- `OpenConnections` 长期接近上限：检查并发、事务和慢查询。
+- 空闲连接频繁归零又快速增长：可以适当增加 `max_idle_connection`。
 
 ```yaml
-# config/config.yaml
-trace:
-  enable: true
-  protocol: "grpc"
-  endpoint: "localhost:4317"  # Jaeger 或 OTLP Collector
+database:
+  max_idle_connection: 10
+  max_open_connection: 100
+  max_idle_time: 10s
+  max_lifetime: 0s
 ```
 
-**使用场景**:
-- 定位慢请求：查看哪个服务、哪个数据库查询耗时最长。
-- 分析调用链：了解服务间的依赖关系。
-- 排查错误：查看错误发生的上下文。
+这些是框架默认值，不是生产环境推荐值。生产值应通过压测和运行指标确定。
 
-**2. 指标监控 (mmetric + Prometheus)**:
-实时监控应用指标。参考 [指标监控文档](../components/observability/metrics/index.md)。
+### 如何排查慢 SQL？
 
-```go
-// 自定义业务指标
-counter := mmetric.Counter("orders.created", "Total orders created")
-counter.Inc(ctx, mmetric.Labels{"status": "success"})
+配置 `slow_threshold` 后，超过阈值的查询会记录 `sql slow` 日志，主要字段为 `elapsed_ms`、`rows` 和 `sql`：
+
+```yaml
+database:
+  slow_threshold: 500ms
+  logger:
+    level: info
 ```
 
-**常用指标**:
-- HTTP 请求量、延迟、错误率
-- 数据库连接池状态
-- Redis 命令执行情况
-- 自定义业务指标（订单量、支付金额等）
+排查顺序通常是：确认请求 Trace → 找到 `sql slow` → 使用 `EXPLAIN`/`EXPLAIN ANALYZE` → 检查索引、扫描行数、锁等待和返回数据量。
 
-**3. 结构化日志 (mlog)**:
-基于 Zap 的高性能日志。参考 [日志文档](../components/logging.md)。
+### Redis 的 `KEYS`、`Clear` 可以在生产使用吗？
+
+不建议对大数据集使用 `KEYS *`。`mcache` Redis Adapter 的 `Keys`、`Values`、`Data` 等全局操作可能扫描整个 DB，`Clear` 会清空当前 DB。生产环境应为缓存分配独立 Redis DB，并优先使用 `SCAN`：
 
 ```go
-// 结构化日志便于查询
-mlog.Infow(ctx, "User login",
-    mlog.Int("user_id", userID),
-    mlog.String("ip", clientIP),
-    mlog.Duration("duration", duration),
+iter := m.Redis().Client().Scan(ctx, 0, "user:*", 100).Iterator()
+for iter.Next(ctx) {
+	key := iter.Val()
+	// 分批处理 key
+}
+if err := iter.Err(); err != nil {
+	return err
+}
+```
+
+不要用固定的“1 MB”或“1 万元素”作为所有场景的绝对边界；应结合序列化成本、网络延迟、Redis 慢日志和内存占用确定阈值。
+
+## 可观测性
+
+### 为什么写了 `trace` 或 `metric` 配置却没有数据？
+
+配置文件不会自动创建 exporter。应用启动时必须显式初始化 OTLP Trace 和 Metric Provider，并在退出时调用 shutdown：
+
+```go
+traceShutdown, err := otlptrace.Init(
+	"localhost:4317",
+	otlptrace.WithServiceName("my-service"),
 )
-```
-
-**最佳实践**:
-- **TraceID 自动注入**: 框架会自动在日志中注入 TraceID，将日志和链路关联。
-- **使用 ELK/Loki 聚合日志**: 将所有服务的日志集中到一个平台查询。
-- **日志分级**: 开发环境用 `debug`，生产环境用 `info`，减少日志量。
-
-**4. 健康检查**:
-```go
-// 在 Controller 中暴露健康检查接口
-func HealthCheck(r *mhttp.Request) {
-    ctx := r.Request.Context()
-
-    // 检查数据库连接
-    if err := m.DB().Ping(ctx); err != nil {
-        r.JSON(500, map[string]any{
-            "status": "unhealthy",
-            "database": "down",
-        })
-        return
-    }
-
-    r.JSON(200, map[string]any{
-        "status": "healthy",
-    })
+if err != nil {
+	panic(err)
 }
-```
+defer traceShutdown(context.Background())
 
-### Q: 框架是否支持微服务架构？如何实现服务间通信？
-
-**A:** Maltose 主要定位于**单体应用和中小型微服务**场景。
-
-**当前支持的微服务特性**:
-
-1. **HTTP RESTful API**: 服务间通过 HTTP 通信。
-   ```go
-   // 使用标准 http.Client 或第三方库调用其他服务
-   resp, err := http.Post("http://user-service/api/v1/users", ...)
-   ```
-
-2. **完整的可观测性**:
-   - `mtrace` 支持跨服务的链路追踪
-   - `mmetric` 可以上报到 Prometheus
-   - `mlog` 输出结构化日志
-
-3. **标准化的 OpenAPI 文档**: 使用 `maltose gen openapi` 生成 API 文档，便于服务间集成。
-
-4. **健康检查和优雅停机**: 便于集成到 Kubernetes。
-
-**不直接支持但可扩展**:
-- **gRPC**: 框架不内置 gRPC，但您可以在项目中集成 [grpc-go](https://github.com/grpc/grpc-go)。
-- **服务注册与发现**: 可以集成 Consul、Etcd、Nacos 等。
-- **消息队列**: 可以集成 RabbitMQ、Kafka、NATS 等实现异步通信。
-
-**推荐架构**:
-- **单体优先**: 对于大多数项目，从单体开始，享受 Maltose 的完整开发体验。
-- **API 网关**: 如果是多服务架构，使用 Kong、Traefik 等网关统一入口。
-- **混合方式**: 核心业务用 Maltose 构建 RESTful 服务，性能敏感部分用 gRPC。
-
-**示例：调用其他服务并传递 TraceContext**:
-```go
-import "go.opentelemetry.io/otel"
-
-func CallUserService(ctx context.Context, userID int) (*User, error) {
-    // 创建带链路追踪的 HTTP 请求
-    req, _ := http.NewRequestWithContext(ctx, "GET",
-        fmt.Sprintf("http://user-service/users/%d", userID), nil)
-
-    otel.GetTextMapPropagator().Inject(ctx, propagation.HeaderCarrier(req.Header))
-
-    resp, err := http.DefaultClient.Do(req)
-    // ...
+metricShutdown, err := otlpmetric.Init(
+	"localhost:4317",
+	otlpmetric.WithServiceName("my-service"),
+)
+if err != nil {
+	panic(err)
 }
+defer metricShutdown(context.Background())
 ```
+
+随后才能创建自定义指标：
+
+```go
+counter := mmetric.NewMustCounter(
+	"orders.created",
+	mmetric.NewMetricOption().WithHelp("Total created orders"),
+)
+counter.Inc(ctx, mmetric.WithAttributes(attribute.String("status", "success")))
+```
+
+OTLP 数据通常由 OpenTelemetry Collector 再转发到 Jaeger、Prometheus 等后端。详见[链路追踪](../components/observability/tracing/)和[指标监控](../components/observability/metrics/)。
+
+### 框架自带健康检查吗？
+
+有。`mhttp.Server` 默认注册 `/health`，返回 `{"status":"ok"}`，适合作为基础存活检查。它不会检查数据库、Redis 等下游依赖；如果需要 readiness 语义，应单独实现依赖检查接口，避免把短暂的下游抖动直接等同于进程死亡。
+
+## 工具链与架构边界
+
+### `maltose gen model` 和 `gen dao` 从哪里读取数据库配置？
+
+这两个命令从项目根目录的 `.env` 读取数据库连接，而应用运行时从 `mcfg` 读取 `config.*`。建议由同一套部署变量生成两份配置，避免环境漂移。其他命令和参数见 [CLI 命令参考](../cli/commands)。
+
+### Maltose 和 GoFrame、Gin 是什么关系？
+
+Maltose 参考了 GoFrame 的工程化思路，但不是 GoFrame 的封装或分支。HTTP 层基于 Gin，数据库层基于 GORM；Maltose 在其上提供配置驱动的实例管理、分层约定、代码生成和可观测性集成。
+
+### Maltose 适合微服务吗？
+
+Maltose 适合单体应用和以 HTTP 为主的中小型服务。框架提供 HTTP、配置、数据库、Redis、日志、Trace、Metric、健康检查和优雅停机；不内置服务注册、gRPC Server、消息队列或 API 网关。这些能力可以在应用中按需集成，跨服务传播 TraceContext 时优先使用 `mclient` 或 OpenTelemetry Propagator。

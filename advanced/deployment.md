@@ -7,6 +7,16 @@
 
 本指南将提供一个推荐的、多阶段构建的 `Dockerfile`，它可以生成一个体积小且相对安全的生产镜像。
 
+## 选择部署方式
+
+| 场景 | 建议方式 | 重点 |
+| --- | --- | --- |
+| 本地或单机验证 | Docker | 镜像可复现、配置挂载 |
+| 多组件开发环境 | Docker Compose | MySQL/Redis 依赖编排 |
+| 生产集群 | Kubernetes | Secret、健康检查、资源限制和滚动发布 |
+
+部署前请确保应用已通过 `go test ./...`，配置中的监听端口与容器端口一致，并为 Trace/Metric Provider 注册 shutdown。
+
 ## 推荐的 Dockerfile
 
 我们推荐使用**多阶段构建（multi-stage build）**来创建您的 Docker 镜像。这种方法的好处是：

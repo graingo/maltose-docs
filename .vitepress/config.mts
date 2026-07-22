@@ -2,11 +2,11 @@ import { defineConfig } from "vitepress";
 
 export default defineConfig({
   title: "Maltose",
-  description: "基于Gin打造的轻量级企业级Go开发框架",
+  description: "基于 Gin 的轻量级企业级 Go 开发框架",
   lang: "zh-CN",
   base: "/maltose-docs/",
+  srcExclude: ["docs/**", "README.md", "DESIGN.md"],
   head: [["link", { rel: "icon", href: "/maltose-docs/favicon.ico" }]],
-  ignoreDeadLinks: true,
   cleanUrls: true,
   themeConfig: {
     logo: "/logo.svg",
@@ -72,6 +72,10 @@ export default defineConfig({
                   text: "设计思路",
                   link: "/components/observability/tracing/design",
                 },
+                {
+                  text: "TraceID 注入与获取",
+                  link: "/components/observability/tracing/best-practice/inject-traceid",
+                },
               ],
             },
             {
@@ -113,8 +117,8 @@ export default defineConfig({
         {
           text: "FAQ",
           items: [
-            { text: "常见问题", link: "/faq/" },
-            { text: "设计哲学", link: "/faq/design-philosophy" },
+            { text: "排错与常见问题", link: "/faq/" },
+            { text: "组件设计哲学", link: "/faq/design-philosophy" },
           ],
         },
       ],
@@ -122,9 +126,16 @@ export default defineConfig({
     socialLinks: [
       { icon: "github", link: "https://github.com/graingo/maltose" },
     ],
+    search: {
+      provider: "local",
+    },
+    editLink: {
+      pattern: "https://github.com/graingo/maltose-docs/edit/master/:path",
+      text: "在 GitHub 上编辑此页",
+    },
     footer: {
       message: "Released under the MIT License.",
-      copyright: "Copyright © 2025 GrainGo",
+      copyright: "Copyright © 2025–2026 GrainGo",
     },
     outline: {
       level: [2, 3],

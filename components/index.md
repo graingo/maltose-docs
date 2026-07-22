@@ -1,27 +1,45 @@
-# 手册
+# 组件手册
 
-Maltose 框架提供了一系列设计精良、开箱即用的内置组件，以帮助您快速构建稳定、可观测、易于维护的企业级应用。这些组件涵盖了从 Web 服务、配置管理到数据库操作和可观测性的方方面面。
+本章按职责介绍 Maltose 的公共组件。应用代码通常通过 `frame/m` 获取配置驱动的共享实例；库代码和测试可以直接使用组件构造函数。
 
-本章节将详细介绍每个核心组件的功能和使用方法。
+## 请求与通信
 
-## 核心组件
+| 组件 | 解决的问题 | 从这里开始 |
+| --- | --- | --- |
+| `mhttp` | HTTP Server、路由、参数绑定和中间件 | [Web Server](./server/) |
+| `mclient` | HTTP Client、中间件、限流和重试 | [HTTP 客户端](./http-client) |
 
-- **Web**:
-  - [**服务器 (mhttp)**](./server/): 基于 Gin 封装的高性能 HTTP 服务器，提供了更简洁的路由定义、中间件和请求处理机制。
-  - [**路由 (Routing)**](./server/routing.md): 强大而灵活的路由系统，支持路由分组、中间件和便捷的控制器绑定。
-  - [**中间件 (Middleware)**](./server/middleware.md): 在请求处理链中插入自定义逻辑，用于处理横切关注点。
-- [**配置管理 (mcfg)**](./configuration.md): 支持多种数据源的统一配置解决方案，采用适配器模式，易于扩展。
-- [**日志 (mlog)**](./logging.md): 基于 Zap 的结构化日志组件，支持日志分级、文件归档、链路字段自动注入等功能。
-- **数据库**:
-  - [**关系型数据库 (mdb)**](./database/mdb.md): 基于 GORM 的数据库 ORM 组件，简化了数据库操作，并内置了连接池、读写分离和慢查询日志等功能。
-  - [**Redis (mredis)**](./database/mredis.md): 配置驱动的 Redis 客户端，集成链路追踪和日志。
-- [**缓存 (mcache)**](./cache.md): 支持多种缓存介质（内存、Redis）的通用缓存组件，采用适配器模式，易于扩展。
-- [**并发控制**](./concurrency.md): 当前版本该章节仅保留状态说明，避免误用尚未公开的并发工具接口。
+Web 相关主题：
+
+- [路由与 Controller 绑定](./server/routing)
+- [中间件](./server/middleware)
+- [标准响应与 HTTP 状态码](./server/standard-response)
+
+## 配置与基础设施
+
+| 组件 | 解决的问题 | 实例策略 |
+| --- | --- | --- |
+| [`mcfg`](./configuration) | 文件、远程 Adapter、结构体映射和加载 Hook | `m.Config()` 或独立 Config |
+| [`mlog`](./logging) | 结构化日志、文件轮转、上下文和链路字段 | `m.Log()` 或独立 Logger |
+| [`mdb`](./database/mdb) | GORM、连接池、事务、读写分离和慢 SQL | `m.DB()` 或独立 DB |
+| [`mredis`](./database/mredis) | Redis 命令、具名实例、日志与 Trace | `m.Redis()` 或独立 Redis |
+| [`mcache`](./cache) | 内存/Redis 缓存、过期和防击穿 | 包级默认缓存或独立 Cache |
+| [`msync`](./concurrency) | SingleFlight、同键串行、并发限制和对象池 | 进程内独立工具 |
 
 ## 可观测性
 
-- [**背景知识**](./observability/background.md): 了解分布式追踪、指标和日志的核心概念。
-- [**链路追踪 (mtrace)**](./observability/tracing/): 集成了 OpenTelemetry 的分布式链路追踪方案，可以轻松地追踪请求在分布式系统中的完整路径。
-- [**指标监控 (mmetric)**](./observability/metrics/): 提供了标准的指标采集接口（Counter, Gauge, Histogram），可以与 Prometheus、OTLP 等多种监控系统集成。
+Maltose 基于 OpenTelemetry 提供 Trace 和 Metric 封装。配置文件只保存参数；Exporter 仍需在应用启动时显式初始化。
 
-通过学习这些组件，您将能够更深入地理解 Maltose 的设计哲学，并更高效地利用框架构建您的应用。
+- [可观测性背景](./observability/background)
+- [链路追踪 `mtrace`](./observability/tracing/)
+- [TraceID 注入与获取](./observability/tracing/best-practice/inject-traceid)
+- [指标监控 `mmetric`](./observability/metrics/)
+
+## 如何选择入口
+
+- 构建业务应用：优先使用 `m.Server()`、`m.Config()`、`m.Log()`、`m.DB()`、`m.Redis()`。
+- 编写可复用库：优先显式接收依赖或配置，避免隐式读取应用全局实例。
+- 编写单元测试：为业务依赖定义最小接口并注入 mock。
+- 管理缓存：直接使用 `mcache`，框架没有在 `m` 门面中规定全局 Cache 实例。
+
+组件装配方式的完整解释见[设计哲学](../faq/design-philosophy)。
