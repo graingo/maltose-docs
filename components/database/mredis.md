@@ -34,6 +34,8 @@ logger:
   stdout: true
 ```
 
+直接调用 `mredis.New(&mredis.Config{...})` 时，未设置字段会继承默认配置，例如地址 `127.0.0.1:6379`、连接池大小 `10`、拨号超时 `5s` 和读写超时 `3s`。
+
 ## 快速上手
 
 ```go
@@ -73,6 +75,15 @@ ctx := context.Background()
 cache := m.Redis("cache")
 if err := cache.Set(ctx, "feature:flag", "enabled"); err != nil {
     panic(err)
+}
+```
+
+需要在运行阶段显式处理配置或初始化错误时，使用 `m.TryRedis()`：
+
+```go
+cache, err := m.TryRedis("cache")
+if err != nil {
+    return err
 }
 ```
 

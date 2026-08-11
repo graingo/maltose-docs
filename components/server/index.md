@@ -54,6 +54,8 @@ s.Use(mhttp.MiddlewareResponse())
 | `swagger_path` | 空 | Swagger UI 路径 |
 | `print_routes` | `false` | 是否打印路由 |
 
+`Run()` 和 `m.App` 管理的 `Start/Stop` 使用同一套关闭逻辑。关闭优雅停机后，框架直接关闭连接；启用时会先等待 `graceful_wait_time`，再在调用方 context 与 `graceful_timeout` 中较早到期的时间内执行 Shutdown。
+
 ## 配置方式
 
 ### 直接设置
@@ -96,6 +98,22 @@ s.EnablePProf()
 // 或者
 s.EnablePProf("/debug/pprof")
 ```
+
+### HTTP 测试
+
+`Server` 实现了 `http.Handler`，无需占用固定端口：
+
+```go
+server := mhttp.New()
+server.GET("/ping", func(r *mhttp.Request) {
+    r.String(http.StatusOK, "pong")
+})
+
+testServer := httptest.NewServer(server.Handler())
+defer testServer.Close()
+```
+
+需要自行分配监听地址时，可调用 `StartListener(ctx, listener)`。
 
 ## 下一步
 

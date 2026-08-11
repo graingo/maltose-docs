@@ -6,8 +6,8 @@
 
 | 现象 | 先看这里 |
 | --- | --- |
-| 新项目无法编译、提示不能导入 `internal` 包 | [生成项目的 import path 没有更新](#为什么-maltose-new-生成的项目无法导入-internal-包) |
-| 启动后请求直接 panic | [模板仍有 `implement me`](#为什么-quickstart-启动后请求会-panic) |
+| 新项目无法编译、提示不能导入 `internal` 包 | [检查 CLI 和自定义模板版本](#为什么-maltose-new-生成的项目无法导入-internal-包) |
+| 旧项目请求直接 panic | [更新旧版模板代码](#为什么旧版-quickstart-请求会-panic) |
 | 配置没有生效 | [配置文件加载规则](#为什么配置文件没有生效) |
 | `m.DB()` 或 `m.Redis()` 初始化失败 | [检查实例配置](#为什么-mdb-或-mredis-初始化失败) |
 | 错误响应状态码与预期不同 | [标准响应规则](#错误响应会返回-200-吗) |
@@ -18,24 +18,28 @@
 
 ### 为什么 `maltose new` 生成的项目无法导入 `internal` 包？
 
-当前 CLI 会更新 `go.mod` 的 module path，但不会同步改写模板 Go 文件中的 `github.com/graingo/maltose-quickstart` import。Go 会因此把这些 import 当作另一个 module，并触发 `internal` 包访问限制。
+当前 CLI 会同时更新 `go.mod` 和引用模板 module 的 Go import。如果仍然遇到 `use of internal package not allowed`：
 
-生成项目后，在 IDE 中将模板原 module 前缀全局替换为 `go.mod` 第一行声明的 module path，然后执行：
+1. 执行 `go install github.com/graingo/maltose/cmd/maltose@latest` 更新 CLI。
+2. 检查 `go.mod` 第一行是否与项目源码中的 import 前缀一致。
+3. 使用 `--repo-url` 指定自定义模板时，确保模板有合法的 module 声明，且内部 import 均以该 module 为前缀。
+
+修正后执行：
 
 ```bash
 go mod tidy
 go test ./...
 ```
 
-### 为什么 quickstart 启动后请求会 panic？
+### 为什么旧版 quickstart 请求会 panic？
 
-quickstart 是项目骨架，生成的 Controller 方法可能仍包含：
+旧版 quickstart 的 Controller 可能仍包含：
 
 ```go
 panic("implement me")
 ```
 
-请求接口前先完成对应 Controller。可直接跟随[快速上手](../guide/getting-started)实现 `Hello` 示例。
+当前官方模板已经提供可直接请求的 Hello 示例，新生成的 Controller 骨架也会返回对应响应类型的零值，不再使用占位 panic。已有项目不会被 CLI 自动覆盖，请手动实现这些 Controller 后再提供服务。
 
 ### 为什么配置文件没有生效？
 
@@ -67,7 +71,12 @@ APP_CONFIG=config/config.prod.yaml go run .
 
 ### 为什么 `m.DB()` 或 `m.Redis()` 初始化失败？
 
-`m.DB()` 和 `m.Redis()` 是配置驱动的应用实例。首次调用时如果找不到配置或连接失败，会直接暴露初始化错误。
+`m.DB()` 和 `m.Redis()` 是配置驱动的应用实例。为了保持启动代码简洁，它们在配置或初始化失败时会 panic。需要显式处理错误时使用：
+
+```go
+db, err := m.TryDB()
+redisClient, err := m.TryRedis()
+```
 
 默认实例可以使用扁平结构：
 
@@ -176,7 +185,7 @@ database:
 
 ### Redis 的 `KEYS`、`Clear` 可以在生产使用吗？
 
-不建议对大数据集使用 `KEYS *`。`mcache` Redis Adapter 的 `Keys`、`Values`、`Data` 等全局操作可能扫描整个 DB，`Clear` 会清空当前 DB。生产环境应为缓存分配独立 Redis DB，并优先使用 `SCAN`：
+不建议对大数据集使用 `KEYS *`。`mcache` Redis Adapter 的 `Keys`、`Values`、`Data` 已使用增量 `SCAN`，但仍会遍历整个 DB；`Clear` 会清空当前 DB。生产环境应为缓存分配独立 Redis DB。需要限定匹配范围时，可以直接使用 Redis Client：
 
 ```go
 iter := m.Redis().Client().Scan(ctx, 0, "user:*", 100).Iterator()

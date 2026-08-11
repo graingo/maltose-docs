@@ -70,6 +70,7 @@ database:
 
 - **DSN vs 分散参数**：您可以选择直接提供 `dsn` 连接字符串，或提供 `host`、`port`、`user` 等分散参数。如果提供了 `dsn`，框架会优先使用它。
 - **GORM 插件**：默认启用 OpenTelemetry GORM 插件；其他插件通过 Go 代码调用 `Config.AddPlugin` 注册，不通过 YAML 配置。
+- **代码配置合并**：将部分 `Config` 传给 `mdb.New` 时，未设置字段会继承上述默认值；传入非 nil 的 `Plugins` 可显式替换默认插件列表。
 - **连接池调优**：
   - `max_open_connection` 控制同时活跃的最大连接数，建议根据应用负载和数据库服务器性能调整
   - `max_idle_connection` 通常设置为 `max_open_connection` 的 10-20%
@@ -190,7 +191,7 @@ database:
 完成以上配置后，无需修改任何代码，`mdb` 将自动实现读写请求的分发。
 
 :::warning 副本配置不会继承主库
-每个 `replicas` 条目都会独立创建数据库驱动，必须填写 `type` 以及该副本连接所需的全部字段；也可以为每个副本直接提供完整 `dsn`。
+每个 `replicas` 条目都会独立创建数据库驱动。副本未填写的 `type`、`port`、`user`、`password`、`db_name` 会继承主库，因此通常只需提供不同的 `host`；也可以为副本提供完整 `dsn` 覆盖连接信息。副本配置错误会在错误信息中标明对应数组下标。
 :::
 
 ## 事务操作
@@ -268,6 +269,8 @@ err := db.TransactWithOptions(ctx, &sql.TxOptions{
 
 - **`m.DB(name ...string)`**: 获取指定名称的数据库单例。如果实例不存在，它会尝试使用 `database.{name}` 配置进行初始化。如果 `name` 为空，则使用 `default`。
 - **`m.DBContext(ctx, name ...string)`**: 是 `m.DB(name...).WithContext(ctx)` 的便捷写法。
+- **`m.TryDB(name ...string)`**: 获取数据库单例，并将配置或初始化失败作为 `error` 返回。
+- **`m.TryDBContext(ctx, name ...string)`**: 返回绑定 context 的数据库实例和初始化错误。
 
 这种设计的好处是，您无需在代码中到处传递数据库连接对象。在任何需要数据库操作的地方，只需通过 `m.DB()` 即可获取到正确的、已经初始化好的连接实例。
 

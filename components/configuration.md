@@ -74,26 +74,30 @@ func main() {
 除了通用的 `Get` 方法，`mcfg` 还提供了一系列类型安全的便捷方法，让您可以直接获取特定类型的配置值：
 
 ```go
-// 获取字符串
-appName := cfg.GetString(ctx, "server.name") // "my-app"
+// 运行阶段推荐显式处理错误
+appName, err := cfg.String(ctx, "server.name")
+if err != nil {
+    panic(err)
+}
 
-// 获取整数
-port := cfg.GetInt(ctx, "server.port") // 9000
+port, err := cfg.Int(ctx, "server.port")
+if err != nil {
+    panic(err)
+}
 
-// 获取布尔值
-debug := cfg.GetBool(ctx, "server.debug") // true/false
-
-// 获取 map
-database := cfg.GetMap(ctx, "database")
-
-// 获取切片（元素类型为 any）
-hosts := cfg.GetSlice(ctx, "server.allowed_hosts")
+// 启动阶段确认错误只能通过 panic 处理时，使用 Must 前缀
+debug := cfg.MustGetBool(ctx, "server.debug")
+database := cfg.MustGetMap(ctx, "database")
+hosts := cfg.MustGetSlice(ctx, "server.allowed_hosts")
 ```
 
 **优点**：
 - 类型安全，直接返回 Go 原生类型
-- 代码更简洁，无需手动类型转换
-- 配置项不存在时返回该类型的零值；底层读取或转换失败时，便捷方法会触发 panic
+- `String`、`Int`、`Bool`、`Map`、`Slice` 显式返回读取错误
+- `MustGetString` 等 `Must` 方法适合应用启动阶段
+- 配置项不存在且没有默认值时返回对应类型的零值
+
+旧版的 `GetString`、`GetInt`、`GetBool`、`GetMap`、`GetSlice` 仍然可用，但已废弃；它们等价于对应的 `Must` 方法。
 
 ### 配置结构体映射
 

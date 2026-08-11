@@ -35,8 +35,9 @@
 
   - 克隆官方的 [maltose-quickstart](https://github.com/graingo/maltose-quickstart) 模板到指定的 `[project-name]` 目录。
   - 自动移除模板中的 `.git` 目录，以便您初始化自己的 Git 仓库。
-  - 自动更新 `go.mod`；默认 module path 为 `[project-name]`，也可用 `--module` 显式指定。
-  - 当前不会同步改写模板 Go 文件中的 import path；生成后需将模板原 module 前缀全局替换为新 module path。
+  - 自动更新 `go.mod` 以及引用模板 module 的 Go import path。
+  - 自动执行 `go mod tidy`，确认依赖可以正常解析。
+  - 默认 module path 为 `[project-name]`，也可用 `--module` 显式指定。
 
 - **参数**:
 
@@ -54,13 +55,12 @@
   maltose new my-app
 
   # 推荐为可发布项目显式设置 module path
-  # maltose new my-app --module github.com/acme/my-app
+  maltose new my-app --module github.com/acme/my-app
   cd my-app
-  go mod tidy
   go run .
   ```
 
-- **后续步骤**: 项目创建后先完成模板 Controller 中标记为 `implement me` 的方法，再运行服务。可参考[快速上手](../guide/getting-started.md)。
+- **后续步骤**: 官方模板包含可以直接请求的示例接口。启动成功后，可参考[快速上手](../guide/getting-started.md)继续定义自己的 API。
 
 ### 2. 数据层生成
 

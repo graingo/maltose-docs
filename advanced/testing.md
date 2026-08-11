@@ -12,7 +12,7 @@
 | 层次 | 目标 | 外部依赖 | 建议频率 |
 | --- | --- | --- | --- |
 | 单元测试 | Logic、转换和边界条件 | 使用 fake/mock | 每次提交 |
-| 接口测试 | 路由、绑定、中间件和响应 | 启动本地 HTTP Server | 每次提交 |
+| 接口测试 | 路由、绑定、中间件和响应 | `httptest` | 每次提交 |
 | 集成测试 | GORM、Redis、事务和真实驱动 | Testcontainers 或测试环境 | CI/合并前 |
 
 优先把业务规则放进可注入依赖的 Logic 中；只有必须验证协议或驱动行为时才启动外部依赖。
@@ -162,7 +162,7 @@ func TestValidateEmail(t *testing.T) {
 
 ## 接口测试
 
-接口测试用于验证从 HTTP 请求到响应的整个流程是否正确。当前 `mhttp.Server` 不直接暴露 `http.Handler`，因此应启动一个测试服务器，再用标准 `http.Client` 发起请求。
+接口测试用于验证从 HTTP 请求到响应的整个流程是否正确。`mhttp.Server` 实现了 `http.Handler`，可以直接配合标准库的 `httptest` 使用，不需要固定端口。
 
 ### 示例：测试登录接口
 
@@ -171,10 +171,9 @@ func TestValidateEmail(t *testing.T) {
 package user_test
 
 import (
-	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/graingo/maltose/net/mhttp"
 	"github.com/stretchr/testify/require"
@@ -182,37 +181,32 @@ import (
 
 func TestLoginAPI(t *testing.T) {
 	s := mhttp.New()
-	s.SetAddress("127.0.0.1:18080")
 	s.GET("/login", func(r *mhttp.Request) {
 		r.JSON(http.StatusOK, map[string]any{"token": "test-token"})
 	})
 
-	errCh := make(chan error, 1)
-	go func() { errCh <- s.Start(context.Background()) }()
-	t.Cleanup(func() {
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		require.NoError(t, s.Stop(ctx))
-		require.NoError(t, <-errCh)
-	})
+	testServer := httptest.NewServer(s.Handler())
+	t.Cleanup(testServer.Close)
 
-	var resp *http.Response
-	require.Eventually(t, func() bool {
-		var err error
-		resp, err = http.Get("http://127.0.0.1:18080/login")
-		return err == nil
-	}, time.Second, 10*time.Millisecond)
+	resp, err := http.Get(testServer.URL + "/login")
+	require.NoError(t, err)
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 ```
 
-这个测试启动真实的本地 HTTP 监听并在结束时优雅关闭。测试套件较大时，应为每个测试分配不冲突的端口，或将服务启动封装为统一的测试辅助函数。
+`httptest.NewServer` 会自动分配可用端口并负责关闭监听。如果只需要测试单次请求，也可以使用 `httptest.NewRecorder` 直接调用 `s.Handler().ServeHTTP`。
 
 ## 集成测试
 
 集成测试用于验证多个组件协同工作的场景，通常需要真实的数据库、Redis 等外部依赖。
+
+Maltose 自身使用 `integration` build tag 隔离外部服务测试。因此，无外部服务时 `go test ./...` 仍应通过；准备好 Redis 等依赖后再运行：
+
+```bash
+go test -tags=integration ./database/mredis ./contrib/cache/redis
+```
 
 ### 使用 Testcontainers 进行集成测试
 

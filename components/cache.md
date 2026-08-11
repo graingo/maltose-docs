@@ -92,7 +92,11 @@ func main() {
     }
 
     // 2. 使用 redis 实例创建 Redis 缓存适配器
-    redisAdapter := redis.NewAdapterRedis(redisClient)
+    redisAdapter := redis.NewAdapterRedis(
+        redisClient,
+        redis.WithLockTTL(15*time.Second),
+        redis.WithLockWaitTimeout(5*time.Second),
+    )
 
     // 3. 使用适配器创建缓存实例
     redisCache := mcache.NewWithAdapter(redisAdapter)
@@ -104,6 +108,15 @@ func main() {
 }
 ```
 
+### 关于缓存锁
+
+`GetOrSetFuncLock` 和 `SetIfNotExistFuncLock` 使用带随机所有者 token 的 Redis 锁，释放时通过 Lua 脚本校验所有权，避免旧持有者误删已经过期并被其他请求重新获取的锁。
+
+- `WithLockTTL`：锁的有效期，默认 `10s`；应大于受保护函数的正常执行时间。
+- `WithLockRetryInterval`：锁被占用时的重试间隔，默认 `50ms`。
+- `WithLockWaitTimeout`：等待锁或缓存值的最长时间，默认 `10s`。
+- 等待过程会响应传入的 `context.Context` 取消。
+
 ## 注意事项
 
 ### 关于 Clear/Size/Data/Keys/Values 等全局操作
@@ -112,7 +125,7 @@ func main() {
 
 因此，当您调用 `Clear()`、`Size()`、`Data()`、`Keys()`、`Values()` 这类方法时，它们操作的是整个 Redis DB，而不是像内存缓存那样只操作当前 `mcache` 实例的内部数据。
 
-**警告**: 其中 `Data()`、`Keys()`、`Values()` 方法底层使用了 `KEYS *` 命令，这在生产环境中对大数据量的 Redis 会造成性能问题，甚至阻塞服务。**强烈建议不要在生产环境中使用这些方法**。`Clear()` 方法会清空当前 DB 的所有键值。这些都是与直觉可能相反的行为，请务必谨慎使用。
+`Data()`、`Keys()`、`Values()` 使用增量 `SCAN`，不会通过单条 `KEYS *` 阻塞 Redis，但遍历大型数据库仍然会产生额外网络和内存开销。`Clear()` 会直接清空当前 DB 的所有键值。这些方法的作用域可能与直觉不同，请谨慎用于生产环境。
 
 ### 建议为缓存使用独立的 DB
 

@@ -33,9 +33,10 @@ maltose --version
 ```bash
 maltose new my-project --module github.com/acme/my-project
 cd my-project
+go run .
 ```
 
-当前 `new` 只更新 `go.mod`，不会同步改写模板 Go 文件中的 import path。生成后需将 `github.com/graingo/maltose-quickstart` 全局替换为新 module path。
+`new` 会同步更新 `go.mod` 和模板中的 Go import path，并自动执行 `go mod tidy`。如果任何准备步骤失败，CLI 会删除未完成的项目目录，避免留下不可用的半成品。
 
 ### 数据库驱动开发
 
@@ -52,7 +53,7 @@ maltose gen dao
 1. 在 `api/<module>/<version>/` 定义 `*Req`、`*Res` 和 `m.Meta`。
 2. 生成 Controller 与 Service。
 3. 生成 Logic 骨架。
-4. 完成所有 `TODO`/`implement me`。
+4. 根据业务需求完成生成文件中的 `TODO`。
 5. 生成 OpenAPI，并运行测试。
 
 ```bash

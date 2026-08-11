@@ -72,6 +72,7 @@ package main
 import (
 	"context"
 	"fmt"
+
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/net/mhttp"
 	"github.com/graingo/maltose/os/mlog"
@@ -133,3 +134,15 @@ type AppServer interface {
 - 等待消息队列的生产者完成发送
 - 将缓存中的数据刷回磁盘
 - 调用 Tracer Provider 的 `Shutdown` 方法，确保所有遥测数据都被导出
+
+实现 `io.Closer` 的资源可以直接注册，无需手写包装函数：
+
+```go
+app := m.NewApp(
+    m.WithServer(server),
+    m.WithCloser(db, redisClient),
+    m.WithShutdownTimeout(10*time.Second),
+)
+```
+
+Server、Hook 和 Closer 会分别获得独立的关闭超时；单个资源超时不会阻止后续 Hook 或 Closer 执行。

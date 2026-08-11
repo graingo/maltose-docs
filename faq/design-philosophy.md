@@ -60,7 +60,7 @@ db = m.DB("report")
 ### 3. 生命周期归属
 
 - 调用方通过 `New` 创建的资源，由调用方负责关闭。
-- `m/mins` 返回的共享实例由应用统一持有；需要释放时应在 `m.App` 的 shutdown hook 中处理。
+- `m/mins` 返回的共享实例由应用统一持有；实现 `io.Closer` 的资源可通过 `m.WithCloser` 纳入退出流程，需要 context 的资源使用 shutdown hook。
 - OpenTelemetry Provider 属于进程级全局状态，需要显式初始化并在退出时 shutdown。
 
 ## 为什么 `mcfg` 特殊？

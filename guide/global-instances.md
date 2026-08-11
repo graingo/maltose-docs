@@ -92,6 +92,20 @@ accessLogger := m.Log("access")
 reportDB := m.DB("report")
 ```
 
+`m.DB()` 和 `m.Redis()` 保留了启动失败时 panic 的便捷语义。需要显式处理配置或连接错误时，使用非 panic 入口：
+
+```go
+db, err := m.TryDB("report")
+if err != nil {
+    return err
+}
+
+cache, err := m.TryRedis("cache")
+if err != nil {
+    return err
+}
+```
+
 ## 关于 `mcache`
 
 `mcache` 不通过 `m` 包暴露默认实例，而是直接提供包级方法：
@@ -106,6 +120,7 @@ val, _ := mcache.Get(ctx, "my-key")
 - 中小型项目里，直接使用全局对象通常已经足够。
 - 如果你在做高强度单元测试或复杂依赖替换，建议把全局对象包在自己的 service 层里，减少直接耦合。
 - 可复用库不要隐式依赖 `m`，应通过参数接收所需接口或实例。
-- 显式 `New` 创建的数据库、Redis 和遥测 Provider 由调用方负责关闭；可使用 `m.WithShutdownHook` 纳入应用退出流程。
+- 显式 `New` 创建的数据库和 Redis 由调用方负责关闭；可通过 `m.WithCloser(db, redisClient)` 纳入应用退出流程。
+- 需要 `context.Context` 的遥测 Provider 使用 `m.WithShutdownHook` 注册关闭函数。
 
 `m` 门面、组件构造函数和生命周期之间的关系见[组件设计哲学](../faq/design-philosophy)。
