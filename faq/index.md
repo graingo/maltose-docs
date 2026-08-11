@@ -10,11 +10,26 @@
 | 旧项目请求直接 panic | [更新旧版模板代码](#为什么旧版-quickstart-请求会-panic) |
 | 配置没有生效 | [配置文件加载规则](#为什么配置文件没有生效) |
 | `m.DB()` 或 `m.Redis()` 初始化失败 | [检查实例配置](#为什么-mdb-或-mredis-初始化失败) |
+| 测试或多应用之间实例串用 | [使用显式 Scope](#如何隔离测试或同进程中的多个应用) |
 | 错误响应状态码与预期不同 | [标准响应规则](#错误响应会返回-200-吗) |
 | Trace、Metric 没有上报 | [显式初始化 exporter](#为什么写了-observability-配置却没有数据) |
 | SQL 或 Redis 操作变慢 | [数据访问排查](#如何排查慢-sql) |
 
 ## 启动与配置
+
+### 如何隔离测试或同进程中的多个应用？
+
+包级 `m.*` 入口使用进程默认 Scope。需要隔离时，为每个边界创建独立配置和 Scope：
+
+```go
+scopeA := m.NewScope(configA)
+scopeB := m.NewScope(configB)
+
+serverA := scopeA.Server()
+serverB := scopeB.Server()
+```
+
+同一 Scope 内的同名实例会复用，不同 Scope 不共享 Server、DB、Redis 或 Logger。资源仍由各自的 `m.App` 通过 `m.WithServer`、`m.WithCloser` 管理。
 
 ### 为什么 `maltose new` 生成的项目无法导入 `internal` 包？
 

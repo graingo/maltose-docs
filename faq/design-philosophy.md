@@ -26,6 +26,14 @@ db := m.DB()
 redis := m.Redis()
 ```
 
+这些包级入口来自进程默认 Scope。需要隔离应用或测试状态时，可以显式创建 Scope，而不改变底层组件 API：
+
+```go
+scope := m.NewScope(config)
+server := scope.Server()
+db := scope.DB()
+```
+
 因此，更准确的描述是：
 
 > 组件包提供能力，`m/mins` 负责应用装配；调用方可以选择使用配置驱动的共享实例，也可以直接使用底层构造函数。
@@ -38,7 +46,8 @@ redis := m.Redis()
 
 - `New(...)`：由调用方显式构造并持有。
 - `Instance(name)`：获取组件包管理的具名实例。
-- `m.Xxx(name)`：获取经过应用配置装配的具名实例。
+- `m.Xxx(name)`：从默认 Scope 获取经过应用配置装配的具名实例。
+- `scope.Xxx(name)`：从显式 Scope 获取隔离的具名实例。
 - 包级默认函数：适合简单场景，例如 `mcache.Set(...)`。
 
 这些入口不是互斥的“组件身份”，而是服务不同使用场景。
@@ -60,7 +69,7 @@ db = m.DB("report")
 ### 3. 生命周期归属
 
 - 调用方通过 `New` 创建的资源，由调用方负责关闭。
-- `m/mins` 返回的共享实例由应用统一持有；实现 `io.Closer` 的资源可通过 `m.WithCloser` 纳入退出流程，需要 context 的资源使用 shutdown hook。
+- 默认 Scope 或显式 Scope 返回的实例由应用统一持有；实现 `io.Closer` 的资源可通过 `m.WithCloser` 纳入退出流程，需要 context 的资源使用 shutdown hook。
 - OpenTelemetry Provider 属于进程级全局状态，需要显式初始化并在退出时 shutdown。
 
 ## 为什么 `mcfg` 特殊？
@@ -113,6 +122,6 @@ redisCache := mcache.NewWithAdapter(redisAdapter)
 - 应用业务代码优先使用 `m` 门面，减少重复装配。
 - 可复用库代码优先接收显式依赖，不要隐式读取应用全局实例。
 - 单元测试优先注入最小接口，避免直接依赖 `m.DB()`、`m.Redis()`。
-- 需要多个隔离实例时使用具名配置，或直接构造并自行管理生命周期。
+- 同一应用内的多个用途优先使用具名实例；多应用或测试边界使用 `m.NewScope(config)`；底层库仍可直接构造并自行管理生命周期。
 
 这套设计追求的不是“所有组件使用完全相同的内部实现”，而是让应用入口一致，同时保留底层组件的独立可用性。

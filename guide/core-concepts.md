@@ -46,7 +46,34 @@ func someFunc() {
 
 这种模式简化了依赖管理，并极大地提高了代码的可测试性。
 
-## 4. 基于代码生成 (Code Generation)
+## 4. 实例作用域 (Instance Scope)
+
+包级 `m.Server()`、`m.DB()`、`m.Redis()`、`m.Log()` 使用进程默认 Scope，适合绝大多数单应用进程。测试、同进程多应用或需要严格隔离同名实例时，可以显式创建 Scope：
+
+```go
+adapter, err := mcfg.NewAdapterContent(configYAML, "yaml")
+if err != nil {
+    return err
+}
+
+scope := m.NewScope(mcfg.NewWithAdapter(adapter))
+server := scope.Server()
+db, err := scope.TryDB()
+if err != nil {
+    return err
+}
+
+app := m.NewApp(
+    m.WithServer(server),
+    m.WithCloser(db),
+)
+```
+
+每个 Scope 拥有独立的 Server、DB、Redis 和 Logger 容器。同一个 Scope 内，同名实例保持单例；不同 Scope 即使使用相同实例名，也不会共享组件对象。配置对象由调用方显式传入，因此测试不需要替换进程全局配置。
+
+Scope 负责实例边界，不会代替生命周期管理。数据库、Redis、Logger 等资源仍应通过 `m.WithCloser` 注册，HTTP Server 由 `m.WithServer` 管理。
+
+## 5. 基于代码生成 (Code Generation)
 
 Maltose 认为，开发者应当专注于创造性的业务逻辑，而不是编写重复的、易出错的模板代码。因此，`maltose` 命令行工具提供了强大的代码生成能力：
 
@@ -57,7 +84,7 @@ Maltose 认为，开发者应当专注于创造性的业务逻辑，而不是编
 
 这些工具不仅能提高开发效率，还能确保项目中的模板代码遵循统一的规范和最佳实践。这种**契约先行、生成优先**的工作流正是 Maltose 框架所推崇的核心开发模式。
 
-## 5. 应用生命周期 (Application Lifecycle)
+## 6. 应用生命周期 (Application Lifecycle)
 
 Maltose 提供了一个优雅且强大的应用生命周期管理器 `m.App`，它负责统一管理应用中所有服务的启动、运行和优雅关闭。这确保了应用在启动时有序，在停止时能够安全地释放资源，避免数据丢失或状态不一致。
 

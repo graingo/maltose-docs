@@ -39,6 +39,7 @@ Maltose 基于 OpenTelemetry 提供 Trace 和 Metric 封装。应用可以使用
 ## 如何选择入口
 
 - 构建业务应用：优先使用 `m.Server()`、`m.Config()`、`m.Log()`、`m.DB()`、`m.Redis()`。
+- 同进程多应用或隔离测试：使用 `m.NewScope(config)` 获取独立的 Server、DB、Redis 和 Logger 实例。
 - 编写可复用库：优先显式接收依赖或配置，避免隐式读取应用全局实例。
 - 编写单元测试：为业务依赖定义最小接口并注入 mock。
 - 管理缓存：直接使用 `mcache`，框架没有在 `m` 门面中规定全局 Cache 实例。
