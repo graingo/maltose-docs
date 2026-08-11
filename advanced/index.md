@@ -17,9 +17,9 @@
 1. 先统一错误码和响应契约。
 2. 为核心 Logic 添加单元测试，为数据库/Redis 添加集成测试。
 3. 明确配置注入方式和敏感信息管理。
-4. 初始化 Trace、Metric，并验证 shutdown 能刷新遥测数据。
+4. 初始化可观测性 Provider，并验证 shutdown 能刷新 Trace 与 Metric。
 5. 最后完成容器化、健康检查和发布策略。
 
 :::warning 配置不等于初始化
-`trace`、`metric` 节点不会单独完成 OpenTelemetry Provider 初始化；应用仍需调用 `otlptrace.Init`、`otlpmetric.Init`。
+`observability` 节点不会自动执行。应用需要调用 `observability.FromConfig`；需要独立控制时，也可以分别调用 `otlptrace.Init`、`otlpmetric.Init`。
 :::

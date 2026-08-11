@@ -4,7 +4,7 @@
 
 ## 安装
 
-CLI 需要 Go 1.23 或更高版本：
+CLI 需要 Go 1.25 或更高版本：
 
 ```bash
 go install github.com/graingo/maltose/cmd/maltose@latest

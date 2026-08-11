@@ -64,6 +64,7 @@ export default defineConfig({
           text: "可观测性",
           items: [
             { text: "背景知识", link: "/components/observability/background" },
+            { text: "统一初始化", link: "/components/observability/bootstrap" },
             {
               text: "链路追踪",
               link: "/components/observability/tracing/",

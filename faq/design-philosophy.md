@@ -14,7 +14,7 @@ Maltose 的组件设计不按“轻量/重量级”简单分类，而是分别�
 - `mlog` 输出结构化日志。
 - `mdb`、`mredis` 连接外部数据服务。
 - `mcache` 提供统一缓存接口和 Adapter。
-- `mtrace`、`mmetric` 封装 OpenTelemetry 能力。
+- `mtrace`、`mmetric` 封装 OpenTelemetry 能力，`contrib/observability` 负责统一装配和生命周期管理。
 
 `frame/m` 则是应用使用的统一门面。它通过 `frame/mins` 将配置读取、具名实例和延迟初始化组合起来：
 
@@ -104,7 +104,7 @@ redisCache := mcache.NewWithAdapter(redisAdapter)
 | `mredis` | `New` | `Instance` | `m.Redis` | 外部连接资源 |
 | `mhttp` | `New` | 由 `mins` 管理 | `m.Server` | `m.App` 管理 |
 | `mcache` | `New` / `NewWithAdapter` | 包级默认缓存 | 无 | 调用方决定 |
-| `mtrace` / `mmetric` | Provider 初始化 | OpenTelemetry 全局 Provider | 无 | 进程级，显式 shutdown |
+| `mtrace` / `mmetric` | Provider 初始化 | OpenTelemetry 全局 Provider | `observability` 统一装配 | 进程级，显式 shutdown |
 
 `mconv` 是独立项目，不属于 Maltose 仓库内的组件实例体系。
 

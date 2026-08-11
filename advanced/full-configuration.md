@@ -98,24 +98,25 @@ redis:
     address: "127.0.0.1:6379"
     db: 1
 
-trace:
-  enable: true
-  protocol: "grpc"
-  endpoint: "localhost:4317"
+observability:
+  enabled: true
+  service_name: "maltose-app"
+  service_version: "v1.0.0"
+  environment: "production"
   insecure: true
-  timeout: "10s"
-  url_path: "/v1/traces"
-  compression: 1
-  sampling_rate: 1.0
-
-metric:
-  enable: true
-  protocol: "grpc"
-  endpoint: "localhost:4317"
-  insecure: true
-  timeout: "10s"
-  url_path: "/v1/metrics"
-  export_interval: "10s"
+  shutdown_timeout: "10s"
+  trace:
+    enabled: true
+    protocol: "grpc"
+    endpoint: "localhost:4317"
+    timeout: "10s"
+    sample_ratio: 1.0
+  metric:
+    enabled: true
+    protocol: "grpc"
+    endpoint: "localhost:4317"
+    timeout: "10s"
+    export_interval: "10s"
 ```
 
 ## 说明
@@ -145,9 +146,9 @@ server:
 
 如果 `server.default.logger`、`database.default.logger`、`redis.default.logger` 存在，就优先使用各自的日志配置；否则回退到全局 `logger`。
 
-### 4. `trace` 和 `metric` 仍然是应用侧初始化
+### 4. `observability` 仍然由应用侧初始化
 
-这里给出的是推荐配置结构，方便你在应用启动时读取。它们不会仅靠配置文件自动完成 exporter 初始化。
+这里给出的是统一初始化模块读取的配置结构。应用仍需调用 `observability.FromConfig`，并把返回的 Provider 注册到 `m.WithCloser`。
 
 ### 5. 敏感信息不要直接写死
 

@@ -28,9 +28,10 @@ Web 相关主题：
 
 ## 可观测性
 
-Maltose 基于 OpenTelemetry 提供 Trace 和 Metric 封装。配置文件只保存参数；Exporter 仍需在应用启动时显式初始化。
+Maltose 基于 OpenTelemetry 提供 Trace 和 Metric 封装。应用可以使用统一入口初始化两个信号，也可以分别控制底层 Provider。
 
 - [可观测性背景](./observability/background)
+- [统一初始化 Trace 与 Metric](./observability/bootstrap)
 - [链路追踪 `mtrace`](./observability/tracing/)
 - [TraceID 注入与获取](./observability/tracing/best-practice/inject-traceid)
 - [指标监控 `mmetric`](./observability/metrics/)

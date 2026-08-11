@@ -11,7 +11,7 @@
 | 配置没有生效 | [配置文件加载规则](#为什么配置文件没有生效) |
 | `m.DB()` 或 `m.Redis()` 初始化失败 | [检查实例配置](#为什么-mdb-或-mredis-初始化失败) |
 | 错误响应状态码与预期不同 | [标准响应规则](#错误响应会返回-200-吗) |
-| Trace、Metric 没有上报 | [显式初始化 exporter](#为什么写了-trace-或-metric-配置却没有数据) |
+| Trace、Metric 没有上报 | [显式初始化 exporter](#为什么写了-observability-配置却没有数据) |
 | SQL 或 Redis 操作变慢 | [数据访问排查](#如何排查慢-sql) |
 
 ## 启动与配置
@@ -185,7 +185,9 @@ database:
 
 ### Redis 的 `KEYS`、`Clear` 可以在生产使用吗？
 
-不建议对大数据集使用 `KEYS *`。`mcache` Redis Adapter 的 `Keys`、`Values`、`Data` 已使用增量 `SCAN`，但仍会遍历整个 DB；`Clear` 会清空当前 DB。生产环境应为缓存分配独立 Redis DB。需要限定匹配范围时，可以直接使用 Redis Client：
+不建议对大数据集使用 `KEYS *`。`mcache` Redis Adapter 的 `Keys`、`Values`、`Data` 已使用增量 `SCAN`。生产环境应通过 `redis.WithKeyPrefix("app:cache:")` 设置命名空间；此时批量读取和 `Clear` 只处理该前缀。不设置前缀时保留兼容行为，`Clear` 会清空当前 DB，因此仍建议使用独立 Redis DB。
+
+需要执行自定义匹配或分批处理时，可以直接使用 Redis Client：
 
 ```go
 iter := m.Redis().Client().Scan(ctx, 0, "user:*", 100).Iterator()
@@ -202,28 +204,21 @@ if err := iter.Err(); err != nil {
 
 ## 可观测性
 
-### 为什么写了 `trace` 或 `metric` 配置却没有数据？
+### 为什么写了 `observability` 配置却没有数据？
 
-配置文件不会自动创建 exporter。应用启动时必须显式初始化 OTLP Trace 和 Metric Provider，并在退出时调用 shutdown：
+配置文件不会自动创建 exporter。推荐使用统一入口初始化，并把 Provider 交给应用生命周期管理：
 
 ```go
-traceShutdown, err := otlptrace.Init(
-	"localhost:4317",
-	otlptrace.WithServiceName("my-service"),
-)
+telemetry, err := observability.FromConfig(ctx, m.Config())
 if err != nil {
-	panic(err)
+	return err
 }
-defer traceShutdown(context.Background())
 
-metricShutdown, err := otlpmetric.Init(
-	"localhost:4317",
-	otlpmetric.WithServiceName("my-service"),
+app := m.NewApp(
+	m.WithServer(m.Server()),
+	m.WithCloser(telemetry),
 )
-if err != nil {
-	panic(err)
-}
-defer metricShutdown(context.Background())
+return app.Run()
 ```
 
 随后才能创建自定义指标：
@@ -236,7 +231,7 @@ counter := mmetric.NewMustCounter(
 counter.Inc(ctx, mmetric.WithAttributes(attribute.String("status", "success")))
 ```
 
-OTLP 数据通常由 OpenTelemetry Collector 再转发到 Jaeger、Prometheus 等后端。详见[链路追踪](../components/observability/tracing/)和[指标监控](../components/observability/metrics/)。
+需要独立控制时仍可分别调用 `otlptrace.Init`、`otlpmetric.Init`。OTLP 数据通常由 OpenTelemetry Collector 再转发到 Jaeger、Prometheus 等后端。详见[统一初始化](../components/observability/bootstrap)、[链路追踪](../components/observability/tracing/)和[指标监控](../components/observability/metrics/)。
 
 ### 框架自带健康检查吗？
 

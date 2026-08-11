@@ -94,6 +94,7 @@ func main() {
     // 2. 使用 redis 实例创建 Redis 缓存适配器
     redisAdapter := redis.NewAdapterRedis(
         redisClient,
+        redis.WithKeyPrefix("checkout:cache:"),
         redis.WithLockTTL(15*time.Second),
         redis.WithLockWaitTimeout(5*time.Second),
     )
@@ -119,17 +120,19 @@ func main() {
 
 ## 注意事项
 
-### 关于 Clear/Size/Data/Keys/Values 等全局操作
+### 使用命名空间隔离批量操作
 
-与内存适配器不同，`mcache` 的 Redis 适配器本身没有数据分组的功能。如果多个 `mcache` 实例连接到同一个 Redis DB，它们将会共享这个 DB 内的所有数据。
+`WithKeyPrefix` 会给当前 Adapter 的数据键和锁键统一增加前缀。调用方仍然使用逻辑 key，例如 `user:1`；Redis 中实际保存的是 `checkout:cache:user:1`。
 
-因此，当您调用 `Clear()`、`Size()`、`Data()`、`Keys()`、`Values()` 这类方法时，它们操作的是整个 Redis DB，而不是像内存缓存那样只操作当前 `mcache` 实例的内部数据。
+设置前缀后，`Clear()`、`Size()`、`Data()`、`Keys()`、`Values()` 只处理这个命名空间，`Keys()` 和 `Data()` 返回的仍是去掉前缀后的逻辑 key。`Clear()` 使用 `SCAN` 和分批 `UNLINK`，不会清除同一 DB 中其他业务的键。
 
-`Data()`、`Keys()`、`Values()` 使用增量 `SCAN`，不会通过单条 `KEYS *` 阻塞 Redis，但遍历大型数据库仍然会产生额外网络和内存开销。`Clear()` 会直接清空当前 DB 的所有键值。这些方法的作用域可能与直觉不同，请谨慎用于生产环境。
+不设置前缀是为了兼容旧行为：批量读取会遍历当前 DB，`Clear()` 会执行 `FLUSHDB`。生产环境建议始终设置稳定、带分隔符的前缀。
+
+`Data()`、`Keys()`、`Values()` 和带前缀的 `Size()`、`Clear()` 都依赖增量 `SCAN`。它们不会通过单条 `KEYS *` 阻塞 Redis，但遍历大型命名空间仍会产生额外网络和内存开销。
 
 ### 建议为缓存使用独立的 DB
 
-鉴于上述操作的全局性，我们强烈建议您在使用 Redis 作为缓存时，通过配置为其指定一个独立的数据库（例如 `db: 1`, `db: 2`），而不是与其他业务数据（如会话、任务队列等）共用一个默认的 DB (`db: 0`)。这样可以有效隔离不同场景的数据，避免误操作带来的风险。
+前缀可以降低误清理风险，但不能替代资源隔离。重要业务仍建议使用独立 Redis DB 或独立实例，并为不同应用分配不同前缀。
 
 ## 核心接口 `Adapter`
 
