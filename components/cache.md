@@ -92,7 +92,7 @@ func main() {
     }
 
     // 2. 使用 redis 实例创建 Redis 缓存适配器
-    redisAdapter := redis.NewAdapterRedis(
+    redisAdapter := redis.NewAdapterRedisWithOptions(
         redisClient,
         redis.WithKeyPrefix("checkout:cache:"),
         redis.WithLockTTL(15*time.Second),
