@@ -48,30 +48,9 @@ func someFunc() {
 
 ## 4. 实例作用域 (Instance Scope)
 
-包级 `m.Server()`、`m.DB()`、`m.Redis()`、`m.Log()` 使用进程默认 Scope，适合绝大多数单应用进程。测试、同进程多应用或需要严格隔离同名实例时，可以显式创建 Scope：
+包级 `m.Server()`、`m.DB()`、`m.Redis()`、`m.Log()` 使用进程默认 Scope，适合绝大多数单应用进程。显式 Scope 为测试、同进程多应用和同名组件提供独立的配置与实例容器。
 
-```go
-adapter, err := mcfg.NewAdapterContent(configYAML, "yaml")
-if err != nil {
-    return err
-}
-
-scope := m.NewScope(mcfg.NewWithAdapter(adapter))
-server := scope.Server()
-db, err := scope.TryDB()
-if err != nil {
-    return err
-}
-
-app := m.NewApp(
-    m.WithServer(server),
-    m.WithCloser(db),
-)
-```
-
-每个 Scope 拥有独立的 Server、DB、Redis 和 Logger 容器。同一个 Scope 内，同名实例保持单例；不同 Scope 即使使用相同实例名，也不会共享组件对象。配置对象由调用方显式传入，因此测试不需要替换进程全局配置。
-
-Scope 负责实例边界，不会代替生命周期管理。数据库、Redis、Logger 等资源仍应通过 `m.WithCloser` 注册，HTTP Server 由 `m.WithServer` 管理。
+Scope 只确定实例边界，资源仍由 `m.App` 统一关闭。完整的隔离范围、创建方式和测试示例见[Scope 与实例隔离](../advanced/scopes)。
 
 ## 5. 基于代码生成 (Code Generation)
 
@@ -86,90 +65,6 @@ Maltose 认为，开发者应当专注于创造性的业务逻辑，而不是编
 
 ## 6. 应用生命周期 (Application Lifecycle)
 
-Maltose 提供了一个优雅且强大的应用生命周期管理器 `m.App`，它负责统一管理应用中所有服务的启动、运行和优雅关闭。这确保了应用在启动时有序，在停止时能够安全地释放资源，避免数据丢失或状态不一致。
+`m.App` 统一启动实现 `AppServer` 的服务，并在服务退出、启动失败或收到 `SIGINT`、`SIGTERM` 时进入关闭流程。HTTP Server 通过 `m.WithServer` 注册，数据库、Redis 和 Logger 等 `io.Closer` 资源通过 `m.WithCloser` 注册，需要 `context.Context` 的清理逻辑使用 `m.WithShutdownHook`。
 
-### 核心用法
-
-管理一个应用的完整生命周期非常简单。您只需将所有需要独立运行的服务（如 HTTP 服务器）和应用退出时需要执行的清理函数（即“关停钩子”）注册到 `m.App` 实例中，然后调用其 `Run()` 方法即可。
-
-```go
-// in main.go
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/graingo/maltose/frame/m"
-	"github.com/graingo/maltose/net/mhttp"
-	"github.com/graingo/maltose/os/mlog"
-)
-
-func main() {
-	// 1. 创建一个 HTTP 服务器实例
-	s := mhttp.New()
-	s.SetAddress(":8080")
-	s.GET("/", func(r *mhttp.Request) {
-		r.String(200, "Hello, Maltose App!")
-	})
-
-	// 2. 创建一个模拟的清理任务
-	myCleanupTask := func(ctx context.Context) error {
-		fmt.Println("执行自定义的清理任务...")
-		// 例如：关闭数据库连接、同步缓存等
-		fmt.Println("清理任务完成.")
-		return nil
-	}
-
-	// 3. 使用 m.App 统一管理生命周期
-	app := m.NewApp(
-		// 注册需要独立运行的服务 (必须实现 m.AppServer 接口)
-		m.WithServer(s),
-		// 注册一个或多个应用退出时的清理钩子
-		m.WithShutdownHook(myCleanupTask),
-	)
-
-	// 4. 启动应用
-	// Run() 方法会阻塞，并监听操作系统的退出信号 (SIGINT, SIGTERM)
-	if err := app.Run(); err != nil {
-		mlog.Errorf(context.Background(), err, "应用启动失败")
-	}
-}
-```
-
-### AppServer 接口
-
-任何实现了 `m.AppServer` 接口的结构体都可以被 `m.WithServer` 注册。`maltose` 内置的 `mhttp.Server` 就实现了这个接口。
-
-```go
-type AppServer interface {
-    Start(ctx context.Context) error
-    Stop(ctx context.Context) error
-}
-```
-
-- `Start(ctx)`: 启动服务，该方法应该是阻塞式的，直到服务停止或 `ctx` 被取消。
-- `Stop(ctx)`: 优雅地关闭服务。框架会为这个 `ctx` 设置一个超时时间（默认为 10 秒），以防止关停过程无限阻塞。
-
-### 关停钩子 (Shutdown Hooks)
-
-通过 `m.WithShutdownHook` 注册的函数会在应用接收到退出信号（如 `SIGINT`, `SIGTERM`）时被调用。钩子函数会**逆序执行**，即最后注册的钩子最先执行。
-
-这对于安全地释放资源至关重要，例如：
-
-- 关闭数据库连接池
-- 等待消息队列的生产者完成发送
-- 将缓存中的数据刷回磁盘
-- 调用 Tracer Provider 的 `Shutdown` 方法，确保所有遥测数据都被导出
-
-实现 `io.Closer` 的资源可以直接注册，无需手写包装函数：
-
-```go
-app := m.NewApp(
-    m.WithServer(server),
-    m.WithCloser(db, redisClient),
-    m.WithShutdownTimeout(10*time.Second),
-)
-```
-
-Server、Hook 和 Closer 会分别获得独立的关闭超时；单个资源超时不会阻止后续 Hook 或 Closer 执行。
+关闭回调逆序执行，每个 Server、Hook 和 Closer 都有独立超时。完整的执行顺序、错误传播和资源注册示例见[应用生命周期](./lifecycle)。

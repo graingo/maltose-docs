@@ -25,6 +25,7 @@ export default defineConfig({
             { text: "简介", link: "/guide/" },
             { text: "快速开始", link: "/guide/getting-started" },
             { text: "核心概念", link: "/guide/core-concepts" },
+            { text: "应用生命周期", link: "/guide/lifecycle" },
             { text: "全局对象", link: "/guide/global-instances" },
             { text: "目录结构", link: "/guide/directory-structure" },
           ],
@@ -47,7 +48,20 @@ export default defineConfig({
               ],
             },
             { text: "HTTP 客户端", link: "/components/http-client" },
-            { text: "配置管理", link: "/components/configuration" },
+            {
+              text: "配置管理",
+              link: "/components/configuration",
+              items: [
+                {
+                  text: "Apollo 与 Nacos",
+                  link: "/components/remote-configuration",
+                },
+                {
+                  text: "Hook 与缓存",
+                  link: "/components/configuration-hooks",
+                },
+              ],
+            },
             { text: "日志", link: "/components/logging" },
             {
               text: "数据库",
@@ -97,10 +111,12 @@ export default defineConfig({
           text: "进阶",
           items: [
             { text: "进阶总览", link: "/advanced/" },
+            { text: "Scope 与实例隔离", link: "/advanced/scopes" },
             { text: "完整配置参考", link: "/advanced/full-configuration" },
             { text: "测试指南", link: "/advanced/testing" },
             { text: "错误处理", link: "/advanced/error-handling" },
             { text: "部署指南", link: "/advanced/deployment" },
+            { text: "CI 与多模块发布", link: "/advanced/release-engineering" },
             { text: "跨边界链路追踪", link: "/advanced/messaging-tracing" },
           ],
         },
@@ -119,7 +135,10 @@ export default defineConfig({
           text: "FAQ",
           items: [
             { text: "排错与常见问题", link: "/faq/" },
-            { text: "组件设计哲学", link: "/faq/design-philosophy" },
+            {
+              text: "设计哲学与适用边界",
+              link: "/faq/design-philosophy",
+            },
           ],
         },
       ],

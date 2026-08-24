@@ -6,8 +6,9 @@
 
 1. [快速上手](./getting-started)：安装 CLI、创建项目并完成第一个接口。
 2. [项目结构](./directory-structure)：理解 API、Controller、Logic、Service 和 DAO 的边界。
-3. [核心概念](./core-concepts)：掌握代码生成、依赖组织和应用生命周期。
-4. [全局对象](./global-instances)：理解 `m.Server()`、`m.Config()`、`m.DB()` 等统一入口。
+3. [核心概念](./core-concepts)：掌握代码生成、依赖组织和实例边界。
+4. [应用生命周期](./lifecycle)：组织服务启动、优雅关闭和资源释放。
+5. [全局对象](./global-instances)：理解 `m.Server()`、`m.Config()`、`m.DB()` 等统一入口。
 
 ## 你将获得什么
 

@@ -26,6 +26,8 @@ Web 相关主题：
 | [`mcache`](./cache) | 内存/Redis 缓存、过期和防击穿 | 包级默认缓存或独立 Cache |
 | [`msync`](./concurrency) | SingleFlight、同键串行、并发限制和对象池 | 进程内独立工具 |
 
+配置中心和加载阶段的扩展规则分别见[Apollo 与 Nacos](./remote-configuration)和[Hook 与缓存](./configuration-hooks)。
+
 ## 可观测性
 
 Maltose 基于 OpenTelemetry 提供 Trace 和 Metric 封装。应用可以使用统一入口初始化两个信号，也可以分别控制底层 Provider。

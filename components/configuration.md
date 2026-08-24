@@ -176,42 +176,17 @@ fmt.Println("Redis Host:", redisHost.String()) // 输出: 127.0.0.1
 ```go
 // Adapter 接口定义
 type Adapter interface {
-	Get(ctx context.Context, pattern string) (any, error)
-	Data(ctx context.Context) (map[string]any, error)
+    Get(ctx context.Context, pattern string) (any, error)
+    Data(ctx context.Context) (map[string]any, error)
     Available(ctx context.Context, resource ...string) bool
 }
 ```
 
-您可以实现自己的 `Adapter` 来对接不同的配置中心，例如 Nacos。
-
-```go
-// 这是一个简化的 Nacos 适配器示例
-type NacosAdapter struct {
-    // ... Nacos client and config ...
-}
-
-func (a *NacosAdapter) Get(ctx context.Context, pattern string) (any, error) {
-    // 从 Nacos 获取配置
-}
-
-func (a *NacosAdapter) Data(ctx context.Context) (map[string]any, error) {
-    // 从 Nacos 获取所有配置
-}
-// ...
-
-// 使用自定义适配器
-nacosAdapter := &NacosAdapter{ ... }
-customCfg := mcfg.NewWithAdapter(nacosAdapter)
-
-// 后续使用与默认配置完全一致
-value, _ := customCfg.Get(ctx, "some.key.from.nacos")
-```
-
-Maltose 在 `contrib/config` 中已经提供了一些常用的配置中心适配器，您可以直接使用。
+需要对接其他配置源时，实现完整的 `Adapter` 接口并传给 `mcfg.NewWithAdapter`。Apollo 和 Nacos 已有官方 Adapter，直接使用即可，具体见[Apollo 与 Nacos](./remote-configuration)。
 
 ### 清除缓存
 
-如果您使用了支持缓存的自定义适配器，可以手动清除缓存：
+需要重新执行 Adapter 读取和已注册的 Hook 时，可以清除 Config 的处理结果缓存：
 
 ```go
 // 清除配置缓存
@@ -231,60 +206,8 @@ cfg.ClearCache(ctx)
 
 ## 远程配置
 
-远程配置中心直接通过 Adapter 接入，不需要在 Hook 中自行创建客户端。下面是可运行的 Nacos 接入骨架：
-
-```go
-ctx := context.Background()
-
-adapter, err := nacos.New(ctx, nacos.Config{
-    ServerConfigs: []constant.ServerConfig{
-        {
-            IpAddr: "127.0.0.1",
-            Port:   8848,
-        },
-    },
-    ClientConfig: constant.ClientConfig{
-        CacheDir: "/tmp/nacos/cache",
-        LogDir:   "/tmp/nacos/log",
-    },
-    ConfigParam: vo.ConfigParam{
-        DataId: "app.yaml",
-        Group:  "DEFAULT_GROUP",
-        Type:   "yaml",
-    },
-    Watch: true,
-})
-if err != nil {
-    return err
-}
-
-cfg := mcfg.NewWithAdapter(adapter)
-port, err := cfg.Int(ctx, "server.port")
-if err != nil {
-    return err
-}
-```
-
-`Watch` 开启后，Adapter 会更新内存中的远程配置。未注册加载 Hook 时，`cfg` 的后续读取会立即看到新值。Apollo 的使用方式相同：调用 `apollo.New` 创建 Adapter，再传给 `mcfg.NewWithAdapter`。
-
-远程配置的根节点必须是对象。连接信息和鉴权信息应来自环境变量或独立的启动配置，不要与业务配置放在同一个远程数据源中形成循环依赖。
+Apollo 和 Nacos 通过 `contrib/config` 下的 Adapter 接入。连接、监听、缓存刷新和 Scope 装配见[Apollo 与 Nacos](./remote-configuration)。
 
 ## 配置加载钩子
 
-Hook 在 Adapter 加载数据后执行，适合补充默认值、解密字段或执行统一校验：
-
-```go
-mcfg.RegisterAfterLoadHook(func(
-    _ context.Context,
-    data map[string]any,
-) (map[string]any, error) {
-    if _, exists := data["environment"]; !exists {
-        data["environment"] = "production"
-    }
-    return data, nil
-})
-```
-
-`RegisterAfterLoadHook` 注册的是进程级 Hook，会作用于该进程内的所有 `mcfg.Config` 实例。应在首次读取配置前完成注册，并保证 Hook 对每种配置结构都安全。需要保存状态时实现 `mcfg.StatefulHook`；需要隔离到单个配置源时实现自定义 Adapter。
-
-存在 Hook 时，`mcfg.Config` 会缓存处理后的数据。底层数据源变化后调用 `cfg.ClearCache(ctx)`，下一次读取会重新加载并执行 Hook。测试可通过 `mcfg.ClearHooks()` 清理进程级注册。
+Hook 在 Adapter 加载数据后执行，适合补充默认值、解密字段和统一校验。Hook 是进程级能力，并会改变 `mcfg.Config` 的缓存行为；注册时机、刷新规则和测试隔离见[Hook 与缓存](./configuration-hooks)。

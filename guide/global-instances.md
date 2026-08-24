@@ -108,30 +108,7 @@ if err != nil {
 
 ## 显式 Scope
 
-包级方法使用进程默认 Scope。单元测试、同进程运行多个应用，或需要隔离同名组件时，创建独立 Scope：
-
-```go
-adapter, err := mcfg.NewAdapterContent(`
-server:
-  address: ":0"
-`, "yaml")
-if err != nil {
-    return err
-}
-
-scope := m.NewScope(mcfg.NewWithAdapter(adapter))
-server := scope.Server()
-logger := scope.Log()
-```
-
-同一 Scope 内的同名组件保持单例，不同 Scope 之间的 Server、DB、Redis 和 Logger 相互隔离。Scope 确定实例边界，资源关闭仍由应用生命周期负责：
-
-```go
-app := m.NewApp(
-    m.WithServer(server),
-    m.WithCloser(logger),
-)
-```
+包级方法使用进程默认 Scope。单元测试、同进程多应用或同名组件需要隔离时，使用 `m.NewScope(config)` 创建独立边界。显式 Scope 的配置要求、隔离范围和生命周期装配见[Scope 与实例隔离](../advanced/scopes)。
 
 ## 关于 `mcache`
 
