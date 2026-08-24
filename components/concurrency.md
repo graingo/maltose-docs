@@ -49,6 +49,8 @@ defer func() {
 // 执行业务操作
 ```
 
+`NewLimit` 的容量必须大于 `0`；无效容量会在构造时 panic，避免第一次 `Borrow` 永久阻塞。
+
 无需等待时可使用 `TryBorrow`：
 
 ```go
@@ -75,6 +77,8 @@ defer pool.Put(buffer)
 
 buffer.WriteString("hello")
 ```
+
+`NewPool` 的容量同样必须大于 `0`，`create` 必须是有效函数并返回非 `nil` 对象。对象必须来自该 Pool，并且每次 `Get` 只配对一次 `Put`。
 
 当池已达到容量且没有空闲对象时，`Get` 会等待；`Put` 归还对象。还可通过 `Size`、`Available` 查看状态，通过 `Clear` 销毁空闲对象。
 

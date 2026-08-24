@@ -19,11 +19,15 @@ server:
     idle_timeout: "60s"
     max_header_bytes: 1048576
     health_check: "/health"
+    tls_enable: false
+    tls_cert_file: ""
+    tls_key_file: ""
     graceful_enable: true
     graceful_timeout: "30s"
     graceful_wait_time: "5s"
     openapi_path: "/api.json"
     swagger_path: "/swagger"
+    swagger_template: ""
     print_routes: false
     logger:
       level: "info"
@@ -32,9 +36,11 @@ server:
 logger:
   service_name: "maltose-app"
   level: "info"
+  time_format: "2006-01-02 15:04:05.000"
   format: "json"
   stdout: true
   caller: false
+  development: false
   filepath: "logs/app.log"
   max_size: 100
   max_backups: 10
@@ -45,6 +51,7 @@ logger:
 database:
   default:
     type: "mysql"
+    dsn: ""
     host: "127.0.0.1"
     port: "3306"
     user: "root"
@@ -77,7 +84,9 @@ redis:
   default:
     address: "127.0.0.1:6379"
     db: 0
+    user: ""
     password: ""
+    master_name: ""
     pool_size: 10
     min_idle_conns: 0
     max_idle_conns: 0
@@ -105,17 +114,21 @@ observability:
   environment: "production"
   insecure: true
   shutdown_timeout: "10s"
+  attributes:
+    region: "cn-east-1"
   trace:
     enabled: true
     protocol: "grpc"
     endpoint: "localhost:4317"
     timeout: "10s"
+    url_path: ""
     sample_ratio: 1.0
   metric:
     enabled: true
     protocol: "grpc"
     endpoint: "localhost:4317"
     timeout: "10s"
+    url_path: ""
     export_interval: "10s"
 ```
 
@@ -157,3 +170,7 @@ server:
 ### 6. 副本配置不会继承主库
 
 `database.*.replicas` 中的每一项都会独立创建驱动，因此需重复填写 `type` 和完整连接参数，或直接填写完整 `dsn`。
+
+### 7. 只列出当前运行时生效的配置字段
+
+`logger.Writer`、`database.Plugins`、`redis.Hooks` 等 Go 接口或函数值需要在代码中设置，无法通过 YAML 表达。兼容字段 `server_root`、`tls_server_name` 当前不参与运行时行为，因此不应写入新配置。HTTP/JSON OTLP 的 `url_path` 留空时由 OpenTelemetry exporter 使用协议默认路径。

@@ -129,7 +129,7 @@ func convertGormError(err error) error {
 
 ### Redis
 
-`mredis.Get` 返回的是 `(*mvar.Var, error)`，不存在时 `val == nil`。
+`(*mredis.Redis).Get`（通常通过 `m.Redis().Get` 调用）返回 `(*mvar.Var, error)`；键不存在时 `val == nil`。
 
 ```go
 func getUserCache(ctx context.Context, userID string) (*User, error) {

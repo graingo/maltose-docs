@@ -101,7 +101,7 @@ hosts := cfg.MustGetSlice(ctx, "server.allowed_hosts")
 
 ### 配置结构体映射
 
-对于复杂的配置，`mcfg.Struct()` 方法可以将配置自动映射到结构体，提供更好的类型安全性和代码可读性：
+对于复杂配置，使用 `(*mcfg.Config).Struct()`（通常写作 `cfg.Struct()`）将配置映射到结构体：
 
 ```go
 // 定义配置结构体
@@ -136,6 +136,8 @@ if err != nil {
 }
 ```
 
+字段名按 `mconv`、`json`、`yaml` 标签的顺序匹配；没有标签时使用字段名。框架自身的配置结构统一使用 `mconv` 标签，应用结构体也推荐采用同样写法，减少不同序列化标签之间的歧义。
+
 **使用场景**：
 - 配置项较多且结构清晰
 - 需要类型安全的配置访问
@@ -164,6 +166,8 @@ redisCfg := m.Config("redis")
 redisHost, _ := redisCfg.Get(ctx, "host")
 fmt.Println("Redis Host:", redisHost.String()) // 输出: 127.0.0.1
 ```
+
+具名实例要求对应配置文件存在；文件缺失或解析失败会在实例首次创建时 panic，适合在启动阶段尽早暴露配置错误。
 
 ## 适配器 (Adapter)
 
@@ -225,116 +229,62 @@ cfg.ClearCache(ctx)
 - 生产环境不建议频繁调用，可能影响性能
 - 是否会触发远程请求取决于适配器自身的缓存策略
 
-## 配置加载钩子 (Hooks)
+## 远程配置
 
-配置钩子（Hook）提供了一种强大的机制，允许您在配置数据从适配器（如文件、Nacos）加载后，但在最终返回给应用程序之前，对其进行拦截和处理。这对于实现配置的动态修改、数据校验、解密或从多个来源合并配置等高级场景非常有用。
-
-`mcfg` 支持两种类型的钩子：
-
-1.  **无状态钩子 (`ConfigHookFunc`)**: 一个简单的函数，适用于不需要跨次调用保持状态的简单数据转换。
-2.  **有状态钩子 (`StatefulHook`)**: 一个接口，其实现可以拥有自己的内部状态（如缓存、`sync.Once`）。这是处理需要缓存结果的昂贵操作（如网络请求）的推荐方式，可以避免使用全局变量，使代码更整洁、更易于测试。
-
-### 最佳实践：使用 StatefulHook 实现远程配置引导
-
-一个非常常见的场景是：使用本地配置文件来存储远程配置中心（如 Nacos）的连接信息，然后在应用启动时，连接到配置中心，拉取业务配置，并将其与本地配置合并。
-
-`StatefulHook` 是实现此需求的完美方案。
-
-#### 1. 定义 `StatefulHook` 实现
-
-我们创建一个 `NacosHook` 结构体，它实现了 `mcfg.StatefulHook` 接口，并将所有与 Nacos 相关的状态（`sync.Once`, 缓存的数据和错误）都封装在内部。
+远程配置中心直接通过 Adapter 接入，不需要在 Hook 中自行创建客户端。下面是可运行的 Nacos 接入骨架：
 
 ```go
-// file: internal/logic/hook/nacos.go
+ctx := context.Background()
 
-package hook
-
-import (
-	"context"
-	"fmt"
-	"sync"
-
-	"github.com/graingo/maltose/contrib/config/nacos"
-	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
-	"github.com/nacos-group/nacos-sdk-go/v2/vo"
-	"github.com/spf13/viper"
-)
-
-// NacosHook 实现了 mcfg.StatefulHook 接口.
-// 它封装了从 Nacos 获取配置的逻辑，并使用内部状态来缓存结果，确保昂贵的网络操作只执行一次。
-type NacosHook struct {
-	once sync.Once
-	data map[string]any
-	err  error
+adapter, err := nacos.New(ctx, nacos.Config{
+    ServerConfigs: []constant.ServerConfig{
+        {
+            IpAddr: "127.0.0.1",
+            Port:   8848,
+        },
+    },
+    ClientConfig: constant.ClientConfig{
+        CacheDir: "/tmp/nacos/cache",
+        LogDir:   "/tmp/nacos/log",
+    },
+    ConfigParam: vo.ConfigParam{
+        DataId: "app.yaml",
+        Group:  "DEFAULT_GROUP",
+        Type:   "yaml",
+    },
+    Watch: true,
+})
+if err != nil {
+    return err
 }
 
-// Hook 是接口的实现. 它在首次调用时从 Nacos 获取配置，
-// 并在后续调用中返回缓存的数据，然后与传入的本地配置进行合并。
-func (nh *NacosHook) Hook(ctx context.Context, data map[string]any) (map[string]any, error) {
-	nh.once.Do(func() {
-		nacosConfigMap, ok := data["nacos"]
-		if !ok {
-			// 如果本地配置中没有 nacos 节点, 初始化为空 map 并直接返回
-			nh.data = make(map[string]any)
-			return
-		}
-
-		cfg, ok := nacosConfigMap.(map[string]any)
-		if !ok {
-			nh.err = fmt.Errorf("'nacos' config is not a valid map")
-			return
-		}
-
-		// 此处可以添加更健壮的类型断言和错误处理
-		// serverConfigs := []constant.ServerConfig{ ... }
-		// clientConfig := constant.ClientConfig{ ... }
-		// configParam := vo.ConfigParam{ ... }
-
-		// 创建 Nacos 适配器
-		// nacosAdapter, err := nacos.New(ctx, nacos.Config{ ... })
-		// if err != nil {
-		// 	nh.err = fmt.Errorf("failed to create nacos adapter: %w", err)
-		// 	return
-		// }
-
-		// 从 Nacos 获取远程配置并缓存在 NacosHook 实例的字段中
-		// remoteData, err := nacosAdapter.Data(ctx)
-		// if err != nil {
-		// 	nh.err = fmt.Errorf("failed to fetch data from nacos: %w", err)
-		// 	return
-		// }
-		// nh.data = remoteData
-	})
-
-	if nh.err != nil {
-		return nil, nh.err
-	}
-
-	// 每次调用都执行合并逻辑
-	v := viper.New()
-	_ = v.MergeConfigMap(data)   // 1. 合并本地配置
-	_ = v.MergeConfigMap(nh.data) // 2. 将缓存的 Nacos 配置覆盖上去
-
-	return v.AllSettings(), nil
+cfg := mcfg.NewWithAdapter(adapter)
+port, err := cfg.Int(ctx, "server.port")
+if err != nil {
+    return err
 }
 ```
 
-#### 2. 注册钩子
+`Watch` 开启后，Adapter 会更新内存中的远程配置。未注册加载 Hook 时，`cfg` 的后续读取会立即看到新值。Apollo 的使用方式相同：调用 `apollo.New` 创建 Adapter，再传给 `mcfg.NewWithAdapter`。
 
-在您的应用初始化逻辑中（例如 `main.go` 或 `cmd/root.go` 的 `init` 函数），将 `NacosHook` 的实例注册到 `mcfg`。
+远程配置的根节点必须是对象。连接信息和鉴权信息应来自环境变量或独立的启动配置，不要与业务配置放在同一个远程数据源中形成循环依赖。
+
+## 配置加载钩子
+
+Hook 在 Adapter 加载数据后执行，适合补充默认值、解密字段或执行统一校验：
 
 ```go
-import (
-    "my-app/internal/logic/hook"
-    "github.com/graingo/maltose/os/mcfg"
-)
-
-func init() {
-    // ... 其他初始化代码 ...
-
-    // 注册钩子时，传入 NacosHook 的一个新实例
-	mcfg.RegisterAfterLoadHook(&hook.NacosHook{})
-}
+mcfg.RegisterAfterLoadHook(func(
+    _ context.Context,
+    data map[string]any,
+) (map[string]any, error) {
+    if _, exists := data["environment"]; !exists {
+        data["environment"] = "production"
+    }
+    return data, nil
+})
 ```
 
-通过这种模式，您可以用一种非常优雅和健壮的方式扩展配置加载逻辑，而不会污染全局作用域，也无需修改框架的核心代码。
+`RegisterAfterLoadHook` 注册的是进程级 Hook，会作用于该进程内的所有 `mcfg.Config` 实例。应在首次读取配置前完成注册，并保证 Hook 对每种配置结构都安全。需要保存状态时实现 `mcfg.StatefulHook`；需要隔离到单个配置源时实现自定义 Adapter。
+
+存在 Hook 时，`mcfg.Config` 会缓存处理后的数据。底层数据源变化后调用 `cfg.ClearCache(ctx)`，下一次读取会重新加载并执行 Hook。测试可通过 `mcfg.ClearHooks()` 清理进程级注册。

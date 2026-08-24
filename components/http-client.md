@@ -36,7 +36,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("请求失败: %v", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Close()
 
 	fmt.Printf("响应状态码: %d\n", resp.StatusCode)
 	fmt.Println("响应内容:")
@@ -192,7 +192,7 @@ if resp.IsSuccess() {
 
 与 `mhttp` 服务器类似，`mclient` 也支持中间件，允许您在请求发送前后执行通用逻辑，非常适合实现认证、自定义日志、请求签名等功能。
 
-Maltose 内置了链路、指标、恐慌恢复等中间件，您无需手动配置。
+`mclient.New()` 会自动挂载链路、指标和 panic 恢复中间件。恢复能力立即生效；Trace 和 Metric 在未初始化对应 OpenTelemetry Provider 时保持 no-op，生产接入方式见[统一初始化](./observability/bootstrap)。
 
 ### 自定义中间件示例：Auth
 
@@ -220,7 +220,7 @@ client.R().Get("https://api.example.com/secure/data")
 `mclient` 提供了一个开箱即用的速率限制中间件，基于令牌桶算法实现。
 
 ```go
-// 配置为每秒最多 2 个请求，允许 1 个并发
+// 配置为每秒补充 2 个令牌，桶容量为 1
 client.Use(mclient.MiddlewareRateLimit(mclient.RateLimitConfig{
     RequestsPerSecond: 2,
     Burst:             1,

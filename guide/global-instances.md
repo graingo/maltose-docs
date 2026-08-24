@@ -106,6 +106,33 @@ if err != nil {
 }
 ```
 
+## 显式 Scope
+
+包级方法使用进程默认 Scope。单元测试、同进程运行多个应用，或需要隔离同名组件时，创建独立 Scope：
+
+```go
+adapter, err := mcfg.NewAdapterContent(`
+server:
+  address: ":0"
+`, "yaml")
+if err != nil {
+    return err
+}
+
+scope := m.NewScope(mcfg.NewWithAdapter(adapter))
+server := scope.Server()
+logger := scope.Log()
+```
+
+同一 Scope 内的同名组件保持单例，不同 Scope 之间的 Server、DB、Redis 和 Logger 相互隔离。Scope 确定实例边界，资源关闭仍由应用生命周期负责：
+
+```go
+app := m.NewApp(
+    m.WithServer(server),
+    m.WithCloser(logger),
+)
+```
+
 ## 关于 `mcache`
 
 `mcache` 不通过 `m` 包暴露默认实例，而是直接提供包级方法：
@@ -118,7 +145,8 @@ val, _ := mcache.Get(ctx, "my-key")
 ## 使用建议
 
 - 中小型项目里，直接使用全局对象通常已经足够。
-- 如果你在做高强度单元测试或复杂依赖替换，建议把全局对象包在自己的 service 层里，减少直接耦合。
+- 单元测试和多应用进程优先使用 `m.NewScope` 隔离配置与组件实例。
+- 复杂依赖替换可在 service 层定义窄接口，减少业务代码对框架门面的直接耦合。
 - 可复用库不要隐式依赖 `m`，应通过参数接收所需接口或实例。
 - 显式 `New` 创建的数据库和 Redis 由调用方负责关闭；可通过 `m.WithCloser(db, redisClient)` 纳入应用退出流程。
 - 需要 `context.Context` 的遥测 Provider 使用 `m.WithShutdownHook` 注册关闭函数。
