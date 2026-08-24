@@ -67,7 +67,11 @@ curl 'http://127.0.0.1:8081/api/v1/hello?name=Maltose'
 
 ```json
 {
-  "name": "Hello, Maltose!"
+  "code": 0,
+  "message": "OK",
+  "data": {
+    "name": "Hello, Maltose!"
+  }
 }
 ```
 
@@ -77,7 +81,7 @@ curl 'http://127.0.0.1:8081/api/v1/hello?name=Maltose'
 
 从 "Hello, World" 到一个真正的 API 服务，您只需要两步：
 
-1.  **定义 API**: 在 `api/v1/` 目录下创建一个 `user.go` 文件，定义获取用户信息的请求和响应结构体。
+1.  **定义 API**: 在 `api/user/v1/` 目录下创建一个 `user.go` 文件，定义获取用户信息的请求和响应结构体。
 2.  **生成代码**: 在项目根目录运行 `maltose gen service`，Maltose 会自动为您创建对应的 Controller 和 Service 文件骨架。
 
 这个 **“定义 -> 生成”** 的工作流是 Maltose 的核心。现在，我们建议您继续深入学习：

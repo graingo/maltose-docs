@@ -49,10 +49,11 @@
 ```
 .
 ├── api/            # API 定义和请求/响应结构
-│   └── v1/         # API 版本
+│   └── hello/      # 业务模块
+│       ├── v1/     # API v1
+│       └── v2/     # API v2
 ├── cmd/            # 应用程序入口
-│   ├── server.go   # 服务启动
-│   └── config.go   # (可选) 配置加载及钩子(Hook)函数
+│   └── server.go   # Server 装配与路由注册
 ├── config/         # 配置文件
 ├── internal/       # 内部代码，不对外暴露
 │   ├── controller/ # 控制器
