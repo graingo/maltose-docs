@@ -86,6 +86,7 @@ curl 'http://127.0.0.1:8081/api/v1/hello?name=Maltose'
 
 这个 **“定义 -> 生成”** 的工作流是 Maltose 的核心。现在，我们建议您继续深入学习：
 
+- [**AI 辅助开发**](./ai-assisted-development.md): 安装适合业务开发或框架维护的官方 Skill。
 - [**核心概念**](./core-concepts.md): 了解 Maltose 框架背后的设计思想。
 - [**项目结构**](./directory-structure.md): 熟悉官方推荐的项目目录是如何组织的。
 - [**命令行工具**](../cli/index.md): 深入了解 `maltose` CLI 工具的更多用法。

@@ -24,6 +24,7 @@ export default defineConfig({
           items: [
             { text: "简介", link: "/guide/" },
             { text: "快速开始", link: "/guide/getting-started" },
+            { text: "AI 辅助开发", link: "/guide/ai-assisted-development" },
             { text: "核心概念", link: "/guide/core-concepts" },
             { text: "应用生命周期", link: "/guide/lifecycle" },
             { text: "全局对象", link: "/guide/global-instances" },
