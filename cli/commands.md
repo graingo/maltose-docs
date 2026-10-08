@@ -246,55 +246,32 @@
 
 #### `maltose gen openapi`
 
-**使用场景**: 当您在代码中完成了 API 定义，需要为前端、客户端或 API 网关生成一份标准的 OpenAPI 规范（v3）时使用。
+从成对 `*Req/*Res` 生成文档和契约清单。CLI 使用 `go list` 发现当前 build tags 下的 API 包，编译临时导出程序，调用应用所依赖的 Maltose 契约编译器。API 包必须可编译；其 `init` 会执行，因此应保持无副作用。
 
-- **用法**
+```bash
+maltose gen openapi -s api -o cmd/openapi.yaml --openapi-version 3.1.0
+maltose gen openapi -s api -o cmd/openapi.yaml --check
+```
 
-  ```bash
-  maltose gen openapi [flags]
-  ```
+| 参数 | 默认值 | 说明 |
+| --- | --- | --- |
+| `-s, --src` | `api` | API 包目录 |
+| `-o, --output` | `openapi.yaml` | 文档路径；清单为该路径加 `.manifest.json` |
+| `-f, --format` | 从后缀推断 | yaml 或 json |
+| `--openapi-version` | `3.1.0` | 3.0.0 或 3.1.0 |
+| `--extensions` | 空 | 导出 `Configure(*contract.Extensions) error` 的 Go 包路径 |
+| `--check` | false | 重新生成并比较两个文件；差异时退出非零，保留磁盘内容 |
 
-- **功能**:
+```go
+type GetUserReq struct {
+    m.Meta `method:"GET" group:"/api/v1" path:"/users/:id" operation_id:"getUser"`
+    ID string `path:"id" binding:"uuid"`
+}
+type GetUserRes struct {
+    ID string `json:"id"`
+}
+```
 
-  - 扫描 `api` 目录下的 Go 文件，解析请求结构体中嵌入的 `m.Meta` 标签元信息（路径、方法、标签等）。
-  - **深度解析结构体**：能够递归地解析请求和响应结构体，包括**嵌套结构体**、**指针**和**切片**类型。
-  - **自动生成组件定义**：为所有解析到的自定义类型（如 `Image`, `File`）在 `components/schemas` 中创建完整的 schema 定义，并通过 `$ref` 在 API 操作中引用它们。
-  - **支持多种输出格式**：可以生成 `yaml` 或 `json` 格式的规范文件。
+`group` 与实际注册的 RouterGroup 完整前缀一致。支持 GET、POST、PUT、PATCH、DELETE、HEAD。参数来源显式区分 path、query、header、form、json；状态、包装、必填和 nullable 规则见 [API 契约](/components/server/api-metadata)。
 
-- **前置条件**:
-
-  - `api` 目录下的请求结构体（如 `*Req`）需要匿名嵌入带标签的 `m.Meta`，例如：
-
-    ```go
-    type GetUserReq struct {
-        m.Meta `path:"/users/{id}" method:"GET" tag:"用户" summary:"获取用户"`
-        ID     int64 `path:"id" dc:"用户 ID"`
-    }
-    ```
-
-  - 当前生成器支持 `GET`、`POST`、`PUT`、`DELETE`；使用其他方法会返回不支持的错误。
-  - 结构体字段建议使用 `json`, `path`, `form`, `dc` (description) 等标签来提供详尽的元数据。
-
-- **Flags**:
-
-  - `-s, --src`: API 定义文件的源路径。默认为 `api`。
-  - `-o, --output`: 指定输出文件的路径。默认为 `openapi.yaml`。
-  - `-f, --format`: 指定输出格式，可选值为 `yaml` 或 `json`。
-    - **智能推断**：如果此标志未被设置，工具会根据 `--output` 文件名的后缀（`.yaml`, `.yml` 或 `.json`）自动推断格式。
-
-- **示例**:
-
-  ```bash
-  # 生成默认的 openapi.yaml
-  maltose gen openapi
-
-  # 生成名为 api.json 的 JSON 格式规范
-  maltose gen openapi -o api.json
-
-  # 显式指定格式
-  maltose gen openapi -o api.spec -f yaml
-  ```
-
-- **最佳实践**:
-  - 在请求和响应的 `struct` 字段上尽可能详细地使用 `dc:"..."` 标签，它将被转换为 `description` 字段，极大地提高 API 文档的可读性。
-  - 复杂的数据结构（如分页列表）应定义为独立的、可重用的结构体，`gen openapi` 会自动将其提取到 `components/schemas` 中，使 API 规范更清晰。
+导出过程中发现错误时保持原有产物。组件身份由完整 Go 类型身份及请求/响应方向确定，同名跨包类型独立，重复生成字节稳定。

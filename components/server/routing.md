@@ -60,11 +60,14 @@ s.Bind(&user.Controller{})
 | 标签 | 说明 |
 | --- | --- |
 | `path` | 路由路径 |
-| `group` | 路由前缀，生成 OpenAPI 时会参与路径拼接 |
+| `group` | 完整路由前缀，与实际 RouterGroup 前缀一致 |
 | `method` | HTTP 方法 |
 | `summary` | 接口摘要 |
 | `tag` | 文档分组标签 |
 | `dc` | 描述信息 |
+| `operation_id` | 稳定的接口标识 |
+| `status` | 成功状态，默认 200 |
+| `envelope` | none（默认）或 maltose |
 
 > 当前运行时和 OpenAPI 解析器读取的是 `tag`，不是 `tags`。
 
@@ -73,7 +76,8 @@ s.Bind(&user.Controller{})
 | 标签 | 说明 |
 | --- | --- |
 | `path` | 路径参数 |
-| `form` | query 或 form 参数 |
+| `query` | URL 查询参数 |
+| `form` | URL encoded 表单字段 |
 | `json` | JSON 请求体字段 |
 | `header` | 请求头 |
 | `binding` | 校验规则 |
@@ -137,3 +141,5 @@ s.GET("/admin/profile", profileHandler, AuthMiddleware())
 - 对外正式 API 优先使用控制器绑定，结构更稳定。
 - 自定义文件下载、流式输出、Webhook 等特殊接口时，直接用传统处理器更直观。
 - 如果项目依赖 OpenAPI 生成，务必保持 `m.Meta` 标签和真实字段一致。
+
+完整规则、迁移与文档加载方式见 [API 契约](./api-metadata)。

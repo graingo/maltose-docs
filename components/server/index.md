@@ -50,7 +50,8 @@ s.Use(mhttp.MiddlewareResponse())
 | `graceful_enable` | `true` | 是否启用优雅停机 |
 | `graceful_timeout` | `30s` | 优雅停机超时 |
 | `graceful_wait_time` | `5s` | 停机前等待中的连接缓冲时间 |
-| `openapi_path` | 空 | OpenAPI 输出路径 |
+| `openapi_path` | 空 | 已加载 OpenAPI 文档的 HTTP 路径 |
+| `openapi_file` | 空 | 文档文件；同时读取同名 `.manifest.json` |
 | `swagger_path` | 空 | Swagger UI 路径 |
 | `print_routes` | `false` | 是否打印路由 |
 
@@ -120,3 +121,5 @@ defer testServer.Close()
 - 路由与控制器绑定：[路由](/components/server/routing)
 - 响应统一包装：[标准响应](/components/server/standard-response)
 - 自定义横切逻辑：[中间件](/components/server/middleware)
+
+启用文档前，从文件或 embed 加载 CLI 生成的文档和清单。完整声明、迁移和扩展方式见 [API 契约](./api-metadata)。

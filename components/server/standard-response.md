@@ -1,10 +1,12 @@
 # 标准响应
 
-`mhttp.MiddlewareResponse()` 用于把控制器返回值或处理中记录的错误统一包装成标准 JSON 结构。
+控制器成功响应由 `m.Meta` 决定：`envelope:"none"`（默认）直接返回 DTO，`envelope:"maltose"` 返回标准信封。`status` 决定 HTTP 状态；204 输出空响应。框架默认响应器与 `MiddlewareResponse()` 遵循同一声明。
+
+`MiddlewareResponse()` 还负责业务错误及普通 Handler 的标准响应。自定义 Problem Details 时使用自己的错误中间件。
 
 ## 响应结构
 
-启用后，默认输出格式为：
+声明 `envelope:"maltose"` 后，成功响应格式为：
 
 ```json
 {
