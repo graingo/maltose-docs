@@ -278,4 +278,4 @@ type GetUserRes struct {
 
 导出过程中发现错误时保持原有产物。组件身份由完整 Go 类型身份及请求/响应方向确定，同名跨包类型独立，重复生成字节稳定。
 
-文档元数据参数需要配套的新版框架与 CLI。复杂信息使用类型化的 `Extensions.Info/Server/Tag/ExternalDocs`，配置冲突、默认值和迁移规则见 [API 契约](../components/server/api-metadata.md#文档元数据)。`--check` 使用与生成时相同的参数。
+文档元数据参数需要配套的 v0.5.0 框架与 CLI。复杂信息使用类型化的 `Extensions.Info/Server/Tag/ExternalDocs`，配置冲突、默认值和迁移规则见 [API 契约](../components/server/api-metadata.md#文档元数据)。`--check` 使用与生成时相同的参数。

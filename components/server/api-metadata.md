@@ -1,6 +1,6 @@
 # API 契约
 
-本页描述当前 API 契约。文档元数据配置为下一版本新增能力，框架与 CLI 需要一起升级；v0.4.0 用户参照下方迁移说明。已有 v0.3 应用按文末迁移清单升级。
+本页描述当前 API 契约。文档元数据配置为 v0.5.0 新增能力，框架与 CLI 需要一起升级；v0.4.0 用户参照下方迁移说明。已有 v0.3 应用按文末迁移清单升级。
 
 `m.Meta`、成对的 `*Req/*Res` 和字段标签声明 HTTP 契约。运行时与 CLI 使用 `net/mhttp/contract` 的同一个编译器。CLI 发现 DTO 后编译临时 Go 程序，因此 API 包必须可编译，生成过程会执行其依赖的 `init`；API 包应只放类型和无副作用的契约定义。
 
@@ -143,7 +143,7 @@ maltose gen openapi -s api -o cmd/openapi.yaml --extensions example.com/app/apid
 - CLI 的 title/api-version 转换为同一套 `Extensions.Info` 调用。各次调用补充非空字段，相同字段值一致时接受，值冲突时返回错误。Contact、License 分别作为完整声明比较。
 - 标题和版本在配置完成后补齐默认值 `API`、`1.0.0`。仅配置 description/contact 时可省略标题和版本。空字符串表示省略，纯空白标题或版本报错。
 - `Server`、`Tag` 按声明顺序输出；重复 server URL 或 tag name 报错。标签说明写入顶层 tags；接口归属标签仍通过 `m.Meta tag` 声明。
-- Server URL 支持相对地址和标准变量，例如 `Server{URL: "https://{host}/api", Variables: map[string]ServerVariable{"host": {Default: "api.example.com"}}}`。声明枚举时 default 必须属于 enum。
+- Server URL 使用固定绝对地址或相对地址，例如 `https://api.example.com/v1`、`/`；带 `{variable}` 的模板地址会返回错误。
 - `ExternalDocs` 只声明一次，也可通过 `Tag.ExternalDocs` 提供标签文档链接。License 使用 3.0/3.1 共有的 name/url 字段。
 - 输入会深拷贝；框架在生成结束前校验完整文档。元数据变更更新 manifest 文档摘要，operation 指纹保持不变。
 
