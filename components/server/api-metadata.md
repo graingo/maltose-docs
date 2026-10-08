@@ -1,6 +1,6 @@
 # API 契约
 
-本页描述 v0.4.0 的 API 契约。已有 v0.3 应用按文末迁移清单升级。
+本页描述当前 API 契约。文档元数据配置为下一版本新增能力，框架与 CLI 需要一起升级；v0.4.0 用户参照下方迁移说明。已有 v0.3 应用按文末迁移清单升级。
 
 `m.Meta`、成对的 `*Req/*Res` 和字段标签声明 HTTP 契约。运行时与 CLI 使用 `net/mhttp/contract` 的同一个编译器。CLI 发现 DTO 后编译临时 Go 程序，因此 API 包必须可编译，生成过程会执行其依赖的 `init`；API 包应只放类型和无副作用的契约定义。
 
@@ -98,6 +98,58 @@ func Configure(e *contract.Extensions) error {
 ```
 
 运行 `maltose gen openapi --extensions example.com/app/apidocs`。`Extension(operationID, "x-permission", value)` 添加业务元数据；operationID 为空时添加文档级扩展。
+
+### 文档元数据
+
+接口的路由、参数与响应来自 `m.Meta + Req/Res`；标题、联系人、服务器地址和标签说明由应用的 `apidocs.Configure` 声明。元数据通过官方生成链写入产物。
+
+基本信息可直接通过 CLI 传入：
+
+```bash
+maltose gen openapi -s api -o cmd/openapi.yaml \
+  --openapi-version 3.1.0 --title "Example API" --api-version 0.1.0
+```
+
+`--openapi-version` 表示 OpenAPI 规范版本（3.0.0 / 3.1.0）；`--api-version` 写入 `info.version`，表示应用接口文档版本。两者独立于框架版本。
+
+完整元数据沿用 `--extensions`：
+
+```go
+package apidocs
+
+import "github.com/graingo/maltose/net/mhttp/contract"
+
+func Configure(e *contract.Extensions) error {
+    if err := e.Info(contract.Info{
+        Title: "Example API",
+        Version: "0.1.0",
+        Description: "应用接口文档",
+        Contact: &contract.Contact{Name: "API Team", Email: "api@example.com"},
+        License: &contract.License{Name: "MIT", URL: "https://example.com/license"},
+    }); err != nil { return err }
+    if err := e.Server(contract.Server{URL: "/", Description: "当前服务"}); err != nil { return err }
+    if err := e.Tag(contract.Tag{Name: "Products", Description: "产品管理"}); err != nil { return err }
+    return e.ExternalDocs(contract.ExternalDocs{URL: "https://example.com/docs"})
+}
+```
+
+```bash
+maltose gen openapi -s api -o cmd/openapi.yaml --extensions example.com/app/apidocs
+maltose gen openapi -s api -o cmd/openapi.yaml --extensions example.com/app/apidocs --check
+```
+
+配置规则：
+
+- CLI 的 title/api-version 转换为同一套 `Extensions.Info` 调用。各次调用补充非空字段，相同字段值一致时接受，值冲突时返回错误。Contact、License 分别作为完整声明比较。
+- 标题和版本在配置完成后补齐默认值 `API`、`1.0.0`。仅配置 description/contact 时可省略标题和版本。空字符串表示省略，纯空白标题或版本报错。
+- `Server`、`Tag` 按声明顺序输出；重复 server URL 或 tag name 报错。标签说明写入顶层 tags；接口归属标签仍通过 `m.Meta tag` 声明。
+- Server URL 支持相对地址和标准变量，例如 `Server{URL: "https://{host}/api", Variables: map[string]ServerVariable{"host": {Default: "api.example.com"}}}`。声明枚举时 default 必须属于 enum。
+- `ExternalDocs` 只声明一次，也可通过 `Tag.ExternalDocs` 提供标签文档链接。License 使用 3.0/3.1 共有的 name/url 字段。
+- 输入会深拷贝；框架在生成结束前校验完整文档。元数据变更更新 manifest 文档摘要，operation 指纹保持不变。
+
+修改元数据后重新生成并提交文档、manifest；CI 使用相同参数执行 `--check`，检查过程保持文件内容。手工修改产物会使文档与清单错配。
+
+Go 调用方通过 `Generate(operations, Options{Version: "3.1.0", Format: "yaml"}, Configure)` 生成。`Options` 只负责输出设置；v0.4.0 的 `Options.Title` 已移除，标题迁移至 `Extensions.Info(Info{Title: ...})`。新版 CLI 和框架配套使用，临时生成程序直接使用新版 API。
 
 ### 校验错误与存在性
 

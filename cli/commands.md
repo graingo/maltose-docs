@@ -249,8 +249,8 @@
 从成对 `*Req/*Res` 生成文档和契约清单。CLI 使用 `go list` 发现当前 build tags 下的 API 包，编译临时导出程序，调用应用所依赖的 Maltose 契约编译器。API 包必须可编译；其 `init` 会执行，因此应保持无副作用。
 
 ```bash
-maltose gen openapi -s api -o cmd/openapi.yaml --openapi-version 3.1.0
-maltose gen openapi -s api -o cmd/openapi.yaml --check
+maltose gen openapi -s api -o cmd/openapi.yaml --openapi-version 3.1.0 --title "Example API" --api-version 0.1.0
+maltose gen openapi -s api -o cmd/openapi.yaml --title "Example API" --api-version 0.1.0 --check
 ```
 
 | 参数 | 默认值 | 说明 |
@@ -259,6 +259,8 @@ maltose gen openapi -s api -o cmd/openapi.yaml --check
 | `-o, --output` | `openapi.yaml` | 文档路径；清单为该路径加 `.manifest.json` |
 | `-f, --format` | 从后缀推断 | yaml 或 json |
 | `--openapi-version` | `3.1.0` | 3.0.0 或 3.1.0 |
+| `--title` | 空（生成时补为 `API`） | API 文档标题 |
+| `--api-version` | 空（生成时补为 `1.0.0`） | API 文档版本，与 OpenAPI 规范版本独立 |
 | `--extensions` | 空 | 导出 `Configure(*contract.Extensions) error` 的 Go 包路径 |
 | `--check` | false | 重新生成并比较两个文件；差异时退出非零，保留磁盘内容 |
 
@@ -275,3 +277,5 @@ type GetUserRes struct {
 `group` 与实际注册的 RouterGroup 完整前缀一致。支持 GET、POST、PUT、PATCH、DELETE、HEAD。参数来源显式区分 path、query、header、form、json；状态、包装、必填和 nullable 规则见 [API 契约](/components/server/api-metadata)。
 
 导出过程中发现错误时保持原有产物。组件身份由完整 Go 类型身份及请求/响应方向确定，同名跨包类型独立，重复生成字节稳定。
+
+文档元数据参数需要配套的新版框架与 CLI。复杂信息使用类型化的 `Extensions.Info/Server/Tag/ExternalDocs`，配置冲突、默认值和迁移规则见 [API 契约](../components/server/api-metadata.md#文档元数据)。`--check` 使用与生成时相同的参数。
