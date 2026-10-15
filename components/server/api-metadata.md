@@ -11,7 +11,7 @@
 | `m.Meta` | method、path、group、operation_id、status、summary、tag、dc、body、envelope、unknown |
 | `path/query/header/form/json` | 唯一输入来源和名称；`query` 与 `form` 分开 |
 | `field:"required"` | 字段必须出现，允许符合值约束的零值 |
-| `field:"nullable"` | 请求字段允许显式 null；类型必须可表示 nil |
+| `field:"nullable"` | 字段允许显式 null；类型必须可表示 nil |
 | `field:"inline"` | 匿名值结构体展开，只用于字段复用 |
 | `binding` | required、min、max、gte、lte、len、oneof、email、url、uri、uuid |
 | `default` | 输入缺省时填充的 JSON 标量值，随后执行约束 |
@@ -26,7 +26,56 @@
 
 匿名值结构体通过 `field:"inline"` 展开，展开节点只声明 inline。可选对象使用具名指针。同一来源下重名报错。请求根字段指定一个来源，JSON 成员指定 JSON 名称。支持标量、time.Time、指针、切片/数组、字符串键 map 和嵌套结构体。自定义 JSON 编解码类型需要独立适配，不从任意编解码方法推导契约。
 
-响应字段是否必有由 JSON 序列化规则决定：有 omitempty 的字段可缺省，指针和切片/map 可输出 null。响应 schema 约束由业务保证，框架不重新校验每个成功响应。
+### 响应字段的 presence 与 nullable
+
+从 v0.5.1 起，响应字段先采用显式 `field` 契约，再为未声明的字段按 Go JSON 序列化规则推导。presence（是否必须出现）和 nullable（出现时是否允许 null）分别表达：
+
+| 响应声明 | required | nullable |
+| --- | --- | --- |
+| `field:"required"` | 是 | 否，slice/map/pointer 也遵循此规则 |
+| `field:"required,nullable"` | 是 | 是，类型须为 pointer、slice、map 或空 interface |
+| `field:"nullable"` | 根据 `omitempty` 和类型推导 | 是 |
+| 未声明 `field`，无 `omitempty` | 是 | pointer、slice、map、空 interface 允许 null |
+| 未声明 `field`，有 `omitempty` | 可被 JSON 省略的字段为否 | 根据字段实际出现时能否输出 null 推导 |
+
+`omitempty` 省略零值标量、nil 指针、空 slice/map 和 nil interface；值结构体和非零长度固定数组仍会输出，因此仍为 required。对普通 slice/map 和指向标量或值结构体的指针，省略后实际输出的字段为非 null。非 nil 的多层指针、指向 nil slice/map 的指针，以及持有 typed nil 的 interface，仍可输出 null。
+
+显式 `required` 与可省略字段的 `omitempty` 冲突，编译器要求移除 `omitempty`。显式 `nullable` 允许字段出现时为 null；`omitempty` 仍按 Go 规则决定实际是否输出。值标量、值结构体和固定数组声明 nullable 会报错；需要 null 时使用指针。
+
+```go
+type ExampleRes struct {
+    PermissionCodes []string `json:"permission_codes" field:"required"`
+    Attributes map[string]string `json:"attributes" field:"required"`
+    NextCursor *string `json:"next_cursor" field:"required,nullable"`
+}
+
+// 空集合必须初始化；nil slice/map 会被 Go 编码为 null。
+res := ExampleRes{
+    PermissionCodes: []string{},
+    Attributes: map[string]string{},
+}
+// {"permission_codes":[],"attributes":{},"next_cursor":null}
+```
+
+`required` 只要求出现且遵循 null 策略，允许 `0`、`false`、`""`、`[]`、`{}`。字段规则作用于当前字段：`[]*Item` 的 required 要求数组非 null，指针元素仍可为 null；对象成员各自遵循其字段标签。
+
+响应 `binding` 不参与值校验或文档推导；`schema` 补充值约束，presence/nullable 由上述规则确定。业务负责返回符合声明的值，框架保持标准 JSON 序列化，也不逐个校验成功响应。类型化错误响应采用相同的字段编译规则。
+
+### 从 v0.5.0 升级到 v0.5.1
+
+v0.5.1 修复响应 `field:"required"` 被类型 null 推导覆盖的问题。未声明 `field` 的响应保留原有 presence/null 语义，请求绑定语义保持不变。已显式声明 required 的 nil 集合/指针应改为符合契约的值；业务确实返回 null 时，追加 `nullable`。required 与可省略字段的 omitempty 同时出现时，移除 omitempty。
+
+编译后的响应契约现在记录最终 required/nullable，契约指纹随之更新。框架与 CLI 一起升级，并重新生成、提交文档和 manifest；旧清单可能在启动校验时报契约不匹配。生成器使用应用所依赖的框架版本，因此只升级 CLI 不会修复旧框架的产物。
+
+```bash
+go get github.com/graingo/maltose@v0.5.1
+go mod tidy
+go install github.com/graingo/maltose/cmd/maltose@v0.5.1
+maltose gen openapi -s api -o cmd/openapi.yaml --openapi-version 3.1.0
+maltose gen openapi -s api -o cmd/openapi.yaml --openapi-version 3.1.0 --check
+```
+
+生成和检查时继续使用项目已有的元数据及扩展器参数。
 
 ## 执行与业务边界
 
@@ -61,7 +110,7 @@ type ListReq struct {
     Page int `query:"page" default:"1" binding:"min=1"`
 }
 type ListRes struct {
-    Items []Product `json:"items"`
+    Items []Product `json:"items" field:"required"`
 }
 ```
 
