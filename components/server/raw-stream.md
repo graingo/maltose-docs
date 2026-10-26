@@ -115,7 +115,7 @@ func (c *Controller) Download(ctx context.Context, req *DownloadReq) (*DownloadR
 
 流响应在 Controller 返回后、应用中间件的 `Next()` 返回前完成写入。框架默认响应器和 `MiddlewareResponse()` 识别已写入状态，成功响应仅输出一次。下载按有界缓冲分段写出并 flush；流内容保持原始字节。
 
-写入和 Flush 经过当前 ResponseWriter 链。缓冲或压缩中间件的 `Flush()` 应先发送自身缓冲，再调用下一层 Flush；需要报告包装层自身失败时，提供 `FlushError() error`。框架保留底层传输 Flush 错误。`ResponseController()` 用于直接操作传输期限与双向控制；响应缓冲由当前 Writer 的 Flush 管理。
+写入和 Flush 经过当前 ResponseWriter 链。缓冲或压缩中间件的 `Flush()` 应先发送自身缓冲，再调用下一层 Flush；需要报告包装层自身失败时，提供 `FlushError() error`。框架保留底层写入与 Flush 的首次失败，即使包装层只提供无错误返回值的 `Flush()`，后续成功操作也会保留这次传输失败。`ResponseController()` 用于直接操作传输期限与双向控制；响应缓冲由当前 Writer 的 Flush 管理。
 
 框架在提交响应前进行一次有界预读。返回 error 或首个字节读取失败时，错误进入应用错误中间件，应用仍可返回业务 JSON/Problem Details。Controller 内设置的 Header 属于成功响应；准备失败且尚未提交时，框架恢复调用 Controller 前的 Header，保留中间件的请求标识等信息。Controller 或预读发生 panic 时，同样先恢复 Header，再交给现有 `WithPanicHandler` 处理。错误处理器设置错误专用 Header 并写入错误响应。
 
