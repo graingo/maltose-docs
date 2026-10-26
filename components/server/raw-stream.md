@@ -4,6 +4,8 @@
 
 上传文件和下载文件通过普通 HTTP 请求传输二进制字节。`m.Meta` 声明传输模式，Req/Res 的 `io.ReadCloser` 字段承载流资源。Controller、OpenAPI 和 manifest 使用同一份契约。
 
+框架负责 HTTP 传输：声明媒体类型、绑定参数、传递请求流、发送响应流并管理输出资源。文件路径、对象存储、上传意图、权限和租约由业务实现。原始流是显式启用的传输模式，JSON/form 接口继续使用原有绑定与响应流程。
+
 ## 声明
 
 ```go
@@ -113,7 +115,9 @@ func (c *Controller) Download(ctx context.Context, req *DownloadReq) (*DownloadR
 
 流响应在 Controller 返回后、应用中间件的 `Next()` 返回前完成写入。框架默认响应器和 `MiddlewareResponse()` 识别已写入状态，成功响应仅输出一次。下载按有界缓冲分段写出并 flush；流内容保持原始字节。
 
-框架在提交响应前进行一次有界预读。返回 error 或首个字节读取失败时，错误进入应用错误中间件，应用仍可返回业务 JSON/Problem Details。Controller 内设置的 Header 属于成功响应；准备失败且尚未提交时，框架恢复调用 Controller 前的 Header，保留中间件的请求标识等信息。业务错误中间件设置错误专用 Header 并写入错误响应。
+写入和 Flush 经过当前 ResponseWriter 链。缓冲或压缩中间件的 `Flush()` 应先发送自身缓冲，再调用下一层 Flush；需要报告包装层自身失败时，提供 `FlushError() error`。框架保留底层传输 Flush 错误。`ResponseController()` 用于直接操作传输期限与双向控制；响应缓冲由当前 Writer 的 Flush 管理。
+
+框架在提交响应前进行一次有界预读。返回 error 或首个字节读取失败时，错误进入应用错误中间件，应用仍可返回业务 JSON/Problem Details。Controller 内设置的 Header 属于成功响应；准备失败且尚未提交时，框架恢复调用 Controller 前的 Header，保留中间件的请求标识等信息。Controller 或预读发生 panic 时，同样先恢复 Header，再交给现有 `WithPanicHandler` 处理。错误处理器设置错误专用 Header 并写入错误响应。
 
 提交响应后的读、写、flush、长度校验或 Close 错误记录为 `*mhttp.StreamError`，其中 `Written` 是已交给 ResponseWriter 的字节数，`Cause` 保留错误链；它不代表客户端已收到全部字节。应用可以在 `Next()` 后通过 `r.Errors` 记录审计与指标。此时只记录错误，保持响应字节不变。框架随后通过 `http.ErrAbortHandler` 终止 HTTP/1 连接或 HTTP/2 流，客户端把截断作为失败处理。若声明的完整长度已经交付，随后发生的 Close 错误可能仅能通过服务端观测。
 
