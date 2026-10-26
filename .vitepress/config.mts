@@ -42,6 +42,7 @@ export default defineConfig({
               items: [
                 { text: "路由", link: "/components/server/routing" },
                 { text: "API 契约", link: "/components/server/api-metadata" },
+                { text: "原始 HTTP 流", link: "/components/server/raw-stream" },
                 { text: "中间件", link: "/components/server/middleware" },
                 {
                   text: "标准响应",

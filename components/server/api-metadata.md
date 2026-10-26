@@ -8,8 +8,9 @@
 
 | 声明 | 职责 |
 | --- | --- |
-| `m.Meta` | method、path、group、operation_id、status、summary、tag、dc、body、envelope、unknown |
+| `m.Meta` | method、path、group、operation_id、status、summary、tag、dc、body、response、consumes、produces、envelope、unknown |
 | `path/query/header/form/json` | 唯一输入来源和名称；`query` 与 `form` 分开 |
+| `stream:"body"` | 原始请求/响应的 io.ReadCloser 资源；见 [原始 HTTP 流](./raw-stream) |
 | `field:"required"` | 字段必须出现，允许符合值约束的零值 |
 | `field:"nullable"` | 字段允许显式 null；类型必须可表示 nil |
 | `field:"inline"` | 匿名值结构体展开，只用于字段复用 |
@@ -226,7 +227,7 @@ s.Use(func(r *mhttp.Request) {
 7. 移除为严格 JSON 编写的 DTO `UnmarshalJSON`；默认 unknown=reject，允许未知字段时声明 `unknown:"allow"`。
 8. 重新生成并加载文档和清单；CI 执行 `--check`，验证下游客户端。
 
-当前明确支持 JSON 对象和 URL encoded form body。multipart、任意自定义 JSON/Text 编解码、请求中的 interface、非字符串 map 键、字节切片不进入自动契约；文件与流式接口使用普通 Handler。字节内容可声明为 base64 字符串。
+当前支持 JSON 对象、URL encoded form body；开发分支新增 [原始 HTTP 流](./raw-stream)。multipart、任意自定义 JSON/Text 编解码、普通请求 interface、非字符串 map 键、字节切片仍需独立适配。JSON 字节内容可声明为 base64 字符串。
 
 OpenAPI format 是格式提示，具体 validator 的所有边界与业务状态无法由文档证明。指纹覆盖声明和类型图，业务鉴权、数据库约束与自定义校验仍由 HTTP/集成测试覆盖。
 

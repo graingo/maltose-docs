@@ -92,13 +92,8 @@ func (c *Controller) Login(ctx context.Context, req *v1.LoginReq) (*v1.LoginRes,
 }
 ```
 
-## 什么时候不要用它
+## 原始流与自定义协议
 
-以下场景更适合直接手写响应：
+开发分支的 `response:"raw"` 契约由框架负责分段写入并关闭流，与默认响应器及 `MiddlewareResponse()` 一起使用。详见 [原始 HTTP 流](./raw-stream)。业务错误中间件先检查 `r.Writer.Written()`，响应提交后仅记录传输错误。
 
-- 文件下载
-- 流式输出
-- WebSocket
-- 已经明确约定了非 JSON 响应格式的接口
-
-这类路由可以不挂载 `MiddlewareResponse()`，或者在处理器里直接写响应并结束请求。
+WebSocket 和其他自定义协议仍由普通 Handler 管理响应及连接生命周期。

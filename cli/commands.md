@@ -202,6 +202,7 @@
   - 推荐使用 `interface` 模式，便于后续的依赖注入和单元测试。
   - API 定义文件应该遵循 `*Req` 和 `*Res` 的命名约定。
   - 生成的 Controller 和 Service 文件如果已存在，工具会智能地只添加新的方法，不会覆盖已有的实现。
+  - 开发分支修复默认 interface 模式：首次生成包含 Req/Res 方法，后续方法插入目标接口内部。方法按名称排序，重复生成保持文件字节稳定；使用 `stream:"body"` 的 DTO 沿用同一流程。
 
 #### `maltose gen logic`
 
@@ -279,3 +280,5 @@ type GetUserRes struct {
 导出过程中发现错误时保持原有产物。组件身份由完整 Go 类型身份及请求/响应方向确定，同名跨包类型独立，重复生成字节稳定。
 
 文档元数据参数需要配套的 v0.5.0 框架与 CLI。复杂信息使用类型化的 `Extensions.Info/Server/Tag/ExternalDocs`，配置冲突、默认值和迁移规则见 [API 契约](../components/server/api-metadata.md#文档元数据)。`--check` 使用与生成时相同的参数。响应 presence/nullable 的 v0.5.1 修复需要同时升级应用框架与 CLI，并重新生成文档及 manifest，详见 [升级说明](../components/server/api-metadata.md#从-v0-5-0-升级到-v0-5-1)。
+
+原始上传和下载契约在开发分支中沿用同一生成命令，导出 binary Schema 和声明的媒体类型；模式或媒体变化会触发 `--check` 和启动 manifest 校验。具体声明、版本状态及示例见 [原始 HTTP 流](../components/server/raw-stream.md)。
