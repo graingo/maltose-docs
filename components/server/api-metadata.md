@@ -227,7 +227,7 @@ s.Use(func(r *mhttp.Request) {
 7. 移除为严格 JSON 编写的 DTO `UnmarshalJSON`；默认 unknown=reject，允许未知字段时声明 `unknown:"allow"`。
 8. 重新生成并加载文档和清单；CI 执行 `--check`，验证下游客户端。
 
-当前支持 JSON 对象、URL encoded form body；开发分支新增 [原始 HTTP 流](./raw-stream)。multipart、任意自定义 JSON/Text 编解码、普通请求 interface、非字符串 map 键、字节切片仍需独立适配。JSON 字节内容可声明为 base64 字符串。
+当前支持 JSON 对象、URL encoded form body，以及 v0.5.2 新增的 [原始 HTTP 流](./raw-stream)。multipart、任意自定义 JSON/Text 编解码、普通请求 interface、非字符串 map 键、字节切片仍需独立适配。JSON 字节内容可声明为 base64 字符串。
 
 OpenAPI format 是格式提示，具体 validator 的所有边界与业务状态无法由文档证明。指纹覆盖声明和类型图，业务鉴权、数据库约束与自定义校验仍由 HTTP/集成测试覆盖。
 

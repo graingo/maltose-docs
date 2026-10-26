@@ -1,6 +1,11 @@
 # 原始 HTTP 流
 
-本能力位于 `feat/raw-http-stream` 开发分支，尚未发布。框架与 CLI 配套发布后再升级业务依赖；v0.5.1 用户继续使用已有 JSON/form 契约。
+本能力从 v0.5.2 起提供。框架与 CLI 使用配套版本，升级后重新生成 OpenAPI 文档和 manifest。已有 JSON/form 契约保持原有行为。
+
+```bash
+go get github.com/graingo/maltose@v0.5.2
+go install github.com/graingo/maltose/cmd/maltose@v0.5.2
+```
 
 上传文件和下载文件通过普通 HTTP 请求传输二进制字节。`m.Meta` 声明传输模式，Req/Res 的 `io.ReadCloser` 字段承载流资源。Controller、OpenAPI 和 manifest 使用同一份契约。
 
